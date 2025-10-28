@@ -25,7 +25,7 @@ struct CoolClockPresenceApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ClockPresenceView()
         }
         .modelContainer(sharedModelContainer)
     }
