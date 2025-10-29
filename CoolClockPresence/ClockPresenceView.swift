@@ -11,8 +11,6 @@ import AppKit
 
 /// A compact glass-inspired clock that can float above other windows.
 struct ClockPresenceView: View {
-    @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop = true
-    @State private var window: NSWindow?
     @State private var windowSize: CGSize = CGSize(width: 280, height: 100)
 
     private let baseSize = CGSize(width: 280, height: 100)
@@ -52,64 +50,8 @@ struct ClockPresenceView: View {
                 }
             }
             .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
-            .background(WindowAccessor { nsWindow in
-                guard let nsWindow else { return }
-                window = nsWindow
-                configureWindowIfNeeded(nsWindow)
-                applyWindowPreferences(to: nsWindow)
-            })
-            .onChange(of: isAlwaysOnTop) { _ in
-                updateWindowLevel()
-            }
-            .onAppear {
-                updateWindowLevel()
-                updateTrafficLightsVisibility(visible: false)
-            }
         }
         .ignoresSafeArea()
-    }
-
-    private var isWindowFullScreen: Bool {
-        guard let window else { return false }
-        return window.styleMask.contains(.fullScreen)
-    }
-
-    private func configureWindowIfNeeded(_ window: NSWindow) {
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.styleMask.insert([.fullSizeContentView, .resizable])
-        window.isReleasedWhenClosed = false
-        window.hasShadow = true
-        window.isMovableByWindowBackground = true
-        window.animationBehavior = .utilityWindow
-        window.collectionBehavior.insert([.canJoinAllSpaces, .fullScreenAuxiliary])
-        window.level = isAlwaysOnTop ? .floating : .normal
-        window.contentMinSize = CGSize(width: baseSize.width * 0.6, height: baseSize.height * 0.6)
-        window.contentMaxSize = CGSize(width: baseSize.width * 2.2, height: baseSize.height * 2.0)
-    }
-
-    private func applyWindowPreferences(to window: NSWindow) {
-        window.level = isAlwaysOnTop ? .floating : .normal
-        window.collectionBehavior.insert([.canJoinAllSpaces, .fullScreenAuxiliary])
-    }
-
-    private func updateWindowLevel() {
-        guard let window else { return }
-        window.level = isAlwaysOnTop ? .floating : .normal
-    }
-
-    private func updateTrafficLightsVisibility(visible: Bool) {
-        guard let window else { return }
-
-        let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
-
-        for buttonType in buttons {
-            if let button = window.standardWindowButton(buttonType) {
-                button.alphaValue = visible ? 1.0 : 0.0
-            }
-        }
     }
 }
 
@@ -142,26 +84,6 @@ private struct GlassBackdrop: View {
                     )
             )
             .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
-    }
-}
-
-// MARK: - Window Accessor
-
-private struct WindowAccessor: NSViewRepresentable {
-    let callback: (NSWindow?) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        DispatchQueue.main.async {
-            callback(view.window)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            callback(nsView.window)
-        }
     }
 }
 

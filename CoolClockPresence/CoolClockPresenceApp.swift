@@ -7,20 +7,17 @@
 
 #if os(macOS)
 import SwiftUI
+import AppKit
 
 @main
 struct CoolClockPresenceApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop = true
 
     var body: some Scene {
-        WindowGroup {
-            ClockPresenceView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(.clear)
+        Settings {
+            EmptyView()
         }
-        .defaultSize(width: 260, height: 150)
-        .windowStyle(.hiddenTitleBar)
-        .windowToolbarStyle(.unifiedCompact)
         .commands {
             CommandGroup(replacing: .newItem) { }
             CommandMenu("View") {
@@ -28,6 +25,74 @@ struct CoolClockPresenceApp: App {
                     .keyboardShortcut("t", modifiers: [.command, .shift])
             }
         }
+    }
+}
+
+class AppDelegate: NSObject, NSApplicationDelegate {
+    var window: NSPanel?
+    private var alwaysOnTopObserver: NSKeyValueObservation?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Set default preferences
+        UserDefaults.standard.register(defaults: ["clockPresence.alwaysOnTop": true])
+
+        // Create a floating panel instead of regular window
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 280, height: 100),
+            styleMask: [.nonactivatingPanel, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        // Configure panel for full-screen visibility
+        panel.isFloatingPanel = true
+        panel.level = .popUpMenu
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .fullScreenPrimary]
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = true
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.hidesOnDeactivate = false
+
+        // Set size constraints
+        panel.contentMinSize = CGSize(width: 168, height: 60)
+        panel.contentMaxSize = CGSize(width: 616, height: 200)
+
+        // Set SwiftUI content
+        let contentView = ClockPresenceView()
+        panel.contentView = NSHostingView(rootView: contentView)
+
+        // Position and show
+        panel.center()
+        panel.orderFrontRegardless()
+
+        self.window = panel
+
+        // Keep app running as accessory (no dock icon)
+        NSApp.setActivationPolicy(.accessory)
+
+        // Observe changes to the alwaysOnTop setting
+        observeAlwaysOnTopSetting()
+    }
+
+    private func observeAlwaysOnTopSetting() {
+        // Monitor UserDefaults for changes to the alwaysOnTop setting
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateWindowLevel),
+            name: UserDefaults.didChangeNotification,
+            object: nil
+        )
+        updateWindowLevel()
+    }
+
+    @objc private func updateWindowLevel() {
+        guard let panel = window else { return }
+        let isAlwaysOnTop = UserDefaults.standard.bool(forKey: "clockPresence.alwaysOnTop")
+        panel.level = isAlwaysOnTop ? .popUpMenu : .normal
     }
 }
 #endif
