@@ -8,11 +8,37 @@
 #if os(macOS)
 import SwiftUI
 import AppKit
+import Combine
+import IOKit.ps
 
 /// A compact glass-inspired clock that can float above other windows.
 struct ClockPresenceView: View {
+    @AppStorage("windowWidth") private var windowWidth: Double = 280
+    @AppStorage("windowHeight") private var windowHeight: Double = 100
+    @AppStorage("fontColorName") private var fontColorName: String = "green"
+
     @State private var windowSize: CGSize = CGSize(width: 280, height: 100)
-    @State private var fontColor: Color = Color.primary
+    @StateObject private var batteryMonitor = BatteryMonitor()
+
+    private var fontColor: Color {
+        switch fontColorName {
+        case "white": return .white
+        case "black": return .black
+        case "red": return .red
+        case "orange": return .orange
+        case "yellow": return .yellow
+        case "green": return .green
+        case "blue": return .blue
+        case "purple": return .purple
+        case "pink": return .pink
+        case "cyan": return .cyan
+        case "mint": return .mint
+        case "teal": return .teal
+        case "indigo": return .indigo
+        case "primary": return .primary
+        default: return .green
+        }
+    }
 
     private let baseSize = CGSize(width: 280, height: 100)
 
@@ -27,6 +53,10 @@ struct ClockPresenceView: View {
         .system(size: 38 * scale, weight: .semibold, design: .rounded)
     }
 
+    private var batteryFont: Font {
+        .system(size: 19 * scale, weight: .medium, design: .rounded)
+    }
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let date = context.date
@@ -35,43 +65,155 @@ struct ClockPresenceView: View {
                 ZStack {
                     GlassBackdrop()
 
-                    Text(date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute().second()))
-                        .font(clockFont)
-                        .foregroundStyle(fontColor.opacity(0.92))
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
-                        .padding(.vertical, 12 * scale)
-                        .padding(.horizontal, 16 * scale)
-                        .contextMenu {
-                            Menu("Font Color") {
-                                Button("White") { fontColor = .white }
-                                Button("Black") { fontColor = .black }
-                                Button("Red") { fontColor = .red }
-                                Button("Orange") { fontColor = .orange }
-                                Button("Yellow") { fontColor = .yellow }
-                                Button("Green") { fontColor = .green }
-                                Button("Blue") { fontColor = .blue }
-                                Button("Purple") { fontColor = .purple }
-                                Button("Pink") { fontColor = .pink }
-                                Button("Cyan") { fontColor = .cyan }
-                                Button("Mint") { fontColor = .mint }
-                                Button("Teal") { fontColor = .teal }
-                                Button("Indigo") { fontColor = .indigo }
-                                Divider()
-                                Button("Default") { fontColor = .primary }
+                    VStack(spacing: 4 * scale) {
+                        Text(date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute().second()))
+                            .font(clockFont)
+                            .foregroundStyle(fontColor.opacity(0.92))
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
+                            .contextMenu {
+                                Menu("Font Color") {
+                                    Button("White") { fontColorName = "white" }
+                                    Button("Black") { fontColorName = "black" }
+                                    Button("Red") { fontColorName = "red" }
+                                    Button("Orange") { fontColorName = "orange" }
+                                    Button("Yellow") { fontColorName = "yellow" }
+                                    Button("Green") { fontColorName = "green" }
+                                    Button("Blue") { fontColorName = "blue" }
+                                    Button("Purple") { fontColorName = "purple" }
+                                    Button("Pink") { fontColorName = "pink" }
+                                    Button("Cyan") { fontColorName = "cyan" }
+                                    Button("Mint") { fontColorName = "mint" }
+                                    Button("Teal") { fontColorName = "teal" }
+                                    Button("Indigo") { fontColorName = "indigo" }
+                                    Divider()
+                                    Button("Default") { fontColorName = "primary" }
+                                }
                             }
+
+                        // Battery Status
+                        HStack(spacing: 4 * scale) {
+                            Image(systemName: batteryMonitor.batteryIcon)
+                                .font(.system(size: 19 * scale, weight: .medium))
+                                .foregroundStyle(batteryMonitor.batteryColor.opacity(0.92))
+
+                            Text("\(batteryMonitor.batteryLevel)%")
+                                .font(batteryFont)
+                                .foregroundStyle(fontColor.opacity(0.92))
                         }
+                    }
+                    .padding(.vertical, 12 * scale)
+                    .padding(.horizontal, 16 * scale)
                 }
                 .onAppear {
-                    windowSize = geometry.size
+                    // Restore saved window size
+                    windowSize = CGSize(width: windowWidth, height: windowHeight)
                 }
-                .onChange(of: geometry.size) { newSize in
+                .onChange(of: geometry.size) { _, newSize in
                     windowSize = newSize
+                    // Save window size
+                    windowWidth = newSize.width
+                    windowHeight = newSize.height
                 }
             }
             .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
         }
         .ignoresSafeArea()
+    }
+}
+
+// MARK: - Battery Monitor
+
+class BatteryMonitor: ObservableObject {
+    @Published var batteryLevel: Int = 100
+    @Published var isCharging: Bool = false
+    @Published var isPluggedIn: Bool = false
+
+    private var timer: Timer?
+
+    init() {
+        updateBatteryInfo()
+        startMonitoring()
+    }
+
+    deinit {
+        timer?.invalidate()
+    }
+
+    private func startMonitoring() {
+        // Update battery info every 30 seconds
+        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            self?.updateBatteryInfo()
+        }
+    }
+
+    private func updateBatteryInfo() {
+        let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue()
+        guard let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef] else {
+            return
+        }
+
+        for source in sources {
+            guard let info = IOPSGetPowerSourceDescription(snapshot, source)?.takeUnretainedValue() as? [String: Any] else {
+                continue
+            }
+
+            // Get battery level
+            if let currentCapacity = info[kIOPSCurrentCapacityKey] as? Int,
+               let maxCapacity = info[kIOPSMaxCapacityKey] as? Int,
+               maxCapacity > 0 {
+                DispatchQueue.main.async {
+                    self.batteryLevel = (currentCapacity * 100) / maxCapacity
+                }
+            }
+
+            // Get charging status
+            if let isCharging = info[kIOPSIsChargingKey] as? Bool {
+                DispatchQueue.main.async {
+                    self.isCharging = isCharging
+                }
+            }
+
+            // Get power source (AC or battery)
+            if let powerSource = info[kIOPSPowerSourceStateKey] as? String {
+                DispatchQueue.main.async {
+                    self.isPluggedIn = (powerSource == kIOPSACPowerValue)
+                }
+            }
+        }
+    }
+
+    var batteryIcon: String {
+        if isCharging || isPluggedIn {
+            return "battery.100percent.bolt"
+        }
+
+        switch batteryLevel {
+        case 0...10:
+            return "battery.0percent"
+        case 11...25:
+            return "battery.25percent"
+        case 26...50:
+            return "battery.50percent"
+        case 51...75:
+            return "battery.75percent"
+        default:
+            return "battery.100percent"
+        }
+    }
+
+    var batteryColor: Color {
+        if isCharging || isPluggedIn {
+            return .green
+        }
+
+        if batteryLevel <= 20 {
+            return .red
+        } else if batteryLevel <= 50 {
+            return .yellow
+        } else {
+            return .primary
+        }
     }
 }
 

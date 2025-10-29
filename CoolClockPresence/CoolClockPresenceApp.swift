@@ -31,10 +31,15 @@ struct CoolClockPresenceApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSPanel?
     private var alwaysOnTopObserver: NSKeyValueObservation?
+    private let defaults = UserDefaults.standard
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set default preferences
-        UserDefaults.standard.register(defaults: ["clockPresence.alwaysOnTop": true])
+        defaults.register(defaults: [
+            "clockPresence.alwaysOnTop": true,
+            "windowX": -1.0,  // -1 means not set yet, will center on first launch
+            "windowY": -1.0
+        ])
 
         // Create a floating panel instead of regular window
         let panel = NSPanel(
@@ -65,11 +70,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let contentView = ClockPresenceView()
         panel.contentView = NSHostingView(rootView: contentView)
 
-        // Position and show
-        panel.center()
+        // Restore saved position or center if first launch
+        let savedX = defaults.double(forKey: "windowX")
+        let savedY = defaults.double(forKey: "windowY")
+
+        if savedX >= 0 && savedY >= 0 {
+            // Restore saved position
+            panel.setFrameOrigin(NSPoint(x: savedX, y: savedY))
+        } else {
+            // First launch - center the window
+            panel.center()
+        }
+
         panel.orderFrontRegardless()
 
         self.window = panel
+
+        // Observe window position changes to save them
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidMove),
+            name: NSWindow.didMoveNotification,
+            object: panel
+        )
 
         // Keep app running as accessory (no dock icon)
         NSApp.setActivationPolicy(.accessory)
@@ -93,6 +116,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let panel = window else { return }
         let isAlwaysOnTop = UserDefaults.standard.bool(forKey: "clockPresence.alwaysOnTop")
         panel.level = isAlwaysOnTop ? .popUpMenu : .normal
+    }
+
+    @objc private func windowDidMove(_ notification: Notification) {
+        guard let panel = window else { return }
+        let origin = panel.frame.origin
+        defaults.set(origin.x, forKey: "windowX")
+        defaults.set(origin.y, forKey: "windowY")
     }
 }
 #endif
