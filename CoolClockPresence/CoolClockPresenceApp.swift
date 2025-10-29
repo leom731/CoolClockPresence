@@ -30,7 +30,6 @@ struct CoolClockPresenceApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSPanel?
-    private var alwaysOnTopObserver: NSKeyValueObservation?
     private let defaults = UserDefaults.standard
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -41,7 +40,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "windowY": -1.0
         ])
 
-        // Create a floating panel instead of regular window
+        // Create a floating panel
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 280, height: 100),
             styleMask: [.nonactivatingPanel, .resizable, .fullSizeContentView],
@@ -49,18 +48,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
 
-        // Configure panel for full-screen visibility
+        // Configure panel to appear on all spaces
         panel.isFloatingPanel = true
-        panel.level = .popUpMenu
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .fullScreenPrimary]
+        panel.level = .statusBar
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
         panel.isMovableByWindowBackground = true
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
-        panel.becomesKeyOnlyIfNeeded = true
         panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = true
 
         // Set size constraints
         panel.contentMinSize = CGSize(width: 168, height: 60)
@@ -98,11 +97,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         // Observe changes to the alwaysOnTop setting
-        observeAlwaysOnTopSetting()
-    }
-
-    private func observeAlwaysOnTopSetting() {
-        // Monitor UserDefaults for changes to the alwaysOnTop setting
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateWindowLevel),
@@ -115,7 +109,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func updateWindowLevel() {
         guard let panel = window else { return }
         let isAlwaysOnTop = UserDefaults.standard.bool(forKey: "clockPresence.alwaysOnTop")
-        panel.level = isAlwaysOnTop ? .popUpMenu : .normal
+        panel.level = isAlwaysOnTop ? .statusBar : .normal
     }
 
     @objc private func windowDidMove(_ notification: Notification) {
