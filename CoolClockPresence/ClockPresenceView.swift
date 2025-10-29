@@ -12,6 +12,7 @@ import AppKit
 /// A compact glass-inspired clock that can float above other windows.
 struct ClockPresenceView: View {
     @State private var windowSize: CGSize = CGSize(width: 280, height: 100)
+    @State private var fontColor: Color = Color.primary
 
     private let baseSize = CGSize(width: 280, height: 100)
 
@@ -36,11 +37,30 @@ struct ClockPresenceView: View {
 
                     Text(date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute().second()))
                         .font(clockFont)
-                        .foregroundStyle(Color.primary.opacity(0.92))
+                        .foregroundStyle(fontColor.opacity(0.92))
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                         .padding(.vertical, 12 * scale)
                         .padding(.horizontal, 16 * scale)
+                        .contextMenu {
+                            Menu("Font Color") {
+                                Button("White") { fontColor = .white }
+                                Button("Black") { fontColor = .black }
+                                Button("Red") { fontColor = .red }
+                                Button("Orange") { fontColor = .orange }
+                                Button("Yellow") { fontColor = .yellow }
+                                Button("Green") { fontColor = .green }
+                                Button("Blue") { fontColor = .blue }
+                                Button("Purple") { fontColor = .purple }
+                                Button("Pink") { fontColor = .pink }
+                                Button("Cyan") { fontColor = .cyan }
+                                Button("Mint") { fontColor = .mint }
+                                Button("Teal") { fontColor = .teal }
+                                Button("Indigo") { fontColor = .indigo }
+                                Divider()
+                                Button("Default") { fontColor = .primary }
+                            }
+                        }
                 }
                 .onAppear {
                     windowSize = geometry.size
