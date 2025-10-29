@@ -18,6 +18,8 @@ struct ClockPresenceView: View {
     @AppStorage("fontColorName") private var fontColorName: String = "green"
 
     @State private var windowSize: CGSize = CGSize(width: 280, height: 100)
+    @State private var isHovering: Bool = false
+    @State private var isCommandKeyPressed: Bool = false
     @StateObject private var batteryMonitor = BatteryMonitor()
 
     private var fontColor: Color {
@@ -119,6 +121,125 @@ struct ClockPresenceView: View {
             .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
         }
         .ignoresSafeArea()
+        .opacity((isHovering && !isCommandKeyPressed) ? 0 : 1)
+        .animation(.easeInOut(duration: 0.2), value: isHovering)
+        .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
+        .background(HoverDetector(isHovering: $isHovering, isCommandKeyPressed: $isCommandKeyPressed))
+    }
+}
+
+// MARK: - Hover Detector
+
+struct HoverDetector: NSViewRepresentable {
+    @Binding var isHovering: Bool
+    @Binding var isCommandKeyPressed: Bool
+
+    func makeNSView(context: Context) -> NSView {
+        let view = HoverView()
+        view.onHoverChange = { hovering in
+            isHovering = hovering
+        }
+        view.onCommandKeyChange = { commandPressed in
+            isCommandKeyPressed = commandPressed
+        }
+        view.onShouldIgnoreMouseEvents = { shouldIgnore in
+            // Make window click-through only when hovering without command key
+            if let window = view.window {
+                window.ignoresMouseEvents = shouldIgnore
+            }
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+class HoverView: NSView {
+    var onHoverChange: ((Bool) -> Void)?
+    var onCommandKeyChange: ((Bool) -> Void)?
+    var onShouldIgnoreMouseEvents: ((Bool) -> Void)?
+
+    private var trackingArea: NSTrackingArea?
+    private var isHovering: Bool = false
+    private var isCommandPressed: Bool = false
+    private var eventMonitor: Any?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupCommandKeyMonitor()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupCommandKeyMonitor()
+    }
+
+    deinit {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+
+    private func setupCommandKeyMonitor() {
+        // Monitor for flag changes (modifier keys)
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            guard let self = self else { return event }
+
+            let commandPressed = event.modifierFlags.contains(.command)
+
+            if self.isCommandPressed != commandPressed {
+                self.isCommandPressed = commandPressed
+                self.onCommandKeyChange?(commandPressed)
+                self.updateMouseEventHandling()
+            }
+
+            return event
+        }
+    }
+
+    private func updateMouseEventHandling() {
+        // Only ignore mouse events when hovering AND command key is NOT pressed
+        let shouldIgnore = isHovering && !isCommandPressed
+        onShouldIgnoreMouseEvents?(shouldIgnore)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        if let existingTrackingArea = trackingArea {
+            removeTrackingArea(existingTrackingArea)
+        }
+
+        let options: NSTrackingArea.Options = [
+            .mouseEnteredAndExited,
+            .activeAlways,
+            .inVisibleRect
+        ]
+
+        trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: options,
+            owner: self,
+            userInfo: nil
+        )
+
+        if let trackingArea = trackingArea {
+            addTrackingArea(trackingArea)
+        }
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        isCommandPressed = event.modifierFlags.contains(.command)
+        onHoverChange?(true)
+        onCommandKeyChange?(isCommandPressed)
+        updateMouseEventHandling()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        onHoverChange?(false)
+        updateMouseEventHandling()
     }
 }
 
