@@ -37,12 +37,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         defaults.register(defaults: [
             "clockPresence.alwaysOnTop": true,
             "windowX": -1.0,  // -1 means not set yet, will center on first launch
-            "windowY": -1.0
+            "windowY": -1.0,
+            "windowWidth": 280.0,
+            "windowHeight": 100.0
         ])
 
-        // Create a floating panel
+        // Restore saved window size or use defaults
+        let savedWidth = defaults.double(forKey: "windowWidth")
+        let savedHeight = defaults.double(forKey: "windowHeight")
+        let width = savedWidth > 0 ? savedWidth : 280
+        let height = savedHeight > 0 ? savedHeight : 100
+
+        // Create a floating panel with saved size
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 280, height: 100),
+            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
             styleMask: [.nonactivatingPanel, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -93,6 +101,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: panel
         )
 
+        // Observe window size changes to save them
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidResize),
+            name: NSWindow.didResizeNotification,
+            object: panel
+        )
+
         // Keep app running as accessory (no dock icon)
         NSApp.setActivationPolicy(.accessory)
 
@@ -117,6 +133,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let origin = panel.frame.origin
         defaults.set(origin.x, forKey: "windowX")
         defaults.set(origin.y, forKey: "windowY")
+    }
+
+    @objc private func windowDidResize(_ notification: Notification) {
+        guard let panel = window else { return }
+        let size = panel.frame.size
+        defaults.set(size.width, forKey: "windowWidth")
+        defaults.set(size.height, forKey: "windowHeight")
     }
 }
 #endif
