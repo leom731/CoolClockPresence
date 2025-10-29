@@ -32,7 +32,7 @@ struct ClockPresenceView: View {
         case "green": return .green
         case "blue": return .blue
         case "purple": return .purple
-        case "pink": return .pink
+        case "pink": return Color(red: 1.0, green: 0.75, blue: 0.8)
         case "cyan": return .cyan
         case "mint": return .mint
         case "teal": return .teal
