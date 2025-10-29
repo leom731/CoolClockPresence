@@ -101,7 +101,7 @@ struct ClockPresenceView: View {
 
                             Text("\(batteryMonitor.batteryLevel)%")
                                 .font(batteryFont)
-                                .foregroundStyle(fontColor.opacity(0.92))
+                                .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
                         }
                     }
                     .padding(.vertical, 12 * scale)
@@ -334,6 +334,16 @@ class BatteryMonitor: ObservableObject {
             return .yellow
         } else {
             return .primary
+        }
+    }
+
+    var batteryPercentageColor: Color {
+        if batteryLevel < 30 {
+            return .red
+        } else if batteryLevel <= 50 {
+            return .orange
+        } else {
+            return .green
         }
     }
 }
