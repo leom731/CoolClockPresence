@@ -1,61 +1,180 @@
 //
-//  ContentView.swift
+//  ClockPresenceView.swift
 //  CoolClockPresence
 //
-//  Created by LEO on 10/28/25.
+//  Crafted for a floating, glassy clock experience on macOS.
 //
 
+#if os(macOS)
 import SwiftUI
-import SwiftData
+import AppKit
 
+/// A compact glass-inspired clock that can float above other windows.
 struct ClockPresenceView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop = true
+    @State private var window: NSWindow?
+    @State private var windowSize: CGSize = CGSize(width: 280, height: 100)
+
+    private let baseSize = CGSize(width: 280, height: 100)
+
+    private var scale: CGFloat {
+        // Calculate scale based on current window size relative to base size
+        let widthScale = windowSize.width / baseSize.width
+        let heightScale = windowSize.height / baseSize.height
+        return min(widthScale, heightScale)
+    }
+
+    private var clockFont: Font {
+        .system(size: 38 * scale, weight: .semibold, design: .rounded)
+    }
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let date = context.date
+
+            GeometryReader { geometry in
+                ZStack {
+                    GlassBackdrop()
+
+                    Text(date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute().second()))
+                        .font(clockFont)
+                        .foregroundStyle(Color.primary.opacity(0.92))
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                        .padding(.vertical, 12 * scale)
+                        .padding(.horizontal, 16 * scale)
                 }
-                .onDelete(perform: deleteItems)
+                .onAppear {
+                    windowSize = geometry.size
+                }
+                .onChange(of: geometry.size) { newSize in
+                    windowSize = newSize
+                }
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
+            .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
+            .background(WindowAccessor { nsWindow in
+                guard let nsWindow else { return }
+                window = nsWindow
+                configureWindowIfNeeded(nsWindow)
+                applyWindowPreferences(to: nsWindow)
+            })
+            .onChange(of: isAlwaysOnTop) { _ in
+                updateWindowLevel()
             }
-        } detail: {
-            Text("Select an item")
+            .onAppear {
+                updateWindowLevel()
+                updateTrafficLightsVisibility(visible: false)
+            }
         }
+        .ignoresSafeArea()
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
+    private var isWindowFullScreen: Bool {
+        guard let window else { return false }
+        return window.styleMask.contains(.fullScreen)
     }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+    private func configureWindowIfNeeded(_ window: NSWindow) {
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.styleMask.insert([.fullSizeContentView, .resizable])
+        window.isReleasedWhenClosed = false
+        window.hasShadow = true
+        window.isMovableByWindowBackground = true
+        window.animationBehavior = .utilityWindow
+        window.collectionBehavior.insert([.canJoinAllSpaces, .fullScreenAuxiliary])
+        window.level = isAlwaysOnTop ? .floating : .normal
+        window.contentMinSize = CGSize(width: baseSize.width * 0.6, height: baseSize.height * 0.6)
+        window.contentMaxSize = CGSize(width: baseSize.width * 2.2, height: baseSize.height * 2.0)
+    }
+
+    private func applyWindowPreferences(to window: NSWindow) {
+        window.level = isAlwaysOnTop ? .floating : .normal
+        window.collectionBehavior.insert([.canJoinAllSpaces, .fullScreenAuxiliary])
+    }
+
+    private func updateWindowLevel() {
+        guard let window else { return }
+        window.level = isAlwaysOnTop ? .floating : .normal
+    }
+
+    private func updateTrafficLightsVisibility(visible: Bool) {
+        guard let window else { return }
+
+        let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+
+        for buttonType in buttons {
+            if let button = window.standardWindowButton(buttonType) {
+                button.alphaValue = visible ? 1.0 : 0.0
             }
         }
     }
 }
 
-#Preview {
-    ClockPresenceView()
-        .modelContainer(for: Item.self, inMemory: true)
+// MARK: - Glass Backdrop
+
+private struct GlassBackdrop: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 28, style: .continuous)
+            .fill(.ultraThinMaterial.opacity(0.3))
+            .background(
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(
+                        LinearGradient(colors: [
+                            Color.cyan.opacity(0.08),
+                            Color.purple.opacity(0.10),
+                            Color.blue.opacity(0.08)
+                        ], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                    .blur(radius: 30)
+                    .opacity(0.4)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(colors: [
+                            Color.white.opacity(0.25),
+                            Color.white.opacity(0.08)
+                        ], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
+    }
 }
+
+// MARK: - Window Accessor
+
+private struct WindowAccessor: NSViewRepresentable {
+    let callback: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        DispatchQueue.main.async {
+            callback(view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            callback(nsView.window)
+        }
+    }
+}
+
+// MARK: - Preview
+
+struct ClockPresenceView_Previews: PreviewProvider {
+    static var previews: some View {
+        ClockPresenceView()
+            .frame(width: 320, height: 180)
+            .padding()
+            .background(
+                LinearGradient(colors: [.indigo, .black], startPoint: .top, endPoint: .bottom)
+            )
+    }
+}
+#endif

@@ -2,31 +2,32 @@
 //  CoolClockPresenceApp.swift
 //  CoolClockPresence
 //
-//  Created by LEO on 10/28/25.
+//  macOS entry point that presents the floating glass clock.
 //
 
+#if os(macOS)
 import SwiftUI
-import SwiftData
 
 @main
 struct CoolClockPresenceApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop = true
 
     var body: some Scene {
         WindowGroup {
             ClockPresenceView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.clear)
         }
-        .modelContainer(sharedModelContainer)
+        .defaultSize(width: 260, height: 150)
+        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unifiedCompact)
+        .commands {
+            CommandGroup(replacing: .newItem) { }
+            CommandMenu("View") {
+                Toggle("Always on Top", isOn: $isAlwaysOnTop)
+                    .keyboardShortcut("t", modifiers: [.command, .shift])
+            }
+        }
     }
 }
+#endif
