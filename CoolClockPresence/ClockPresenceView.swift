@@ -18,7 +18,7 @@ import IOKit.ps
 struct ClockPresenceView: View {
     @AppStorage("windowWidth") private var windowWidth: Double = 280
     @AppStorage("windowHeight") private var windowHeight: Double = 100
-    @AppStorage("fontColorName") private var fontColorName: String = "green"
+    @AppStorage("fontColorName") private var fontColorName: String = "cyan"
 
     @State private var windowSize: CGSize = CGSize(width: 280, height: 100)
     @State private var isHovering: Bool = false
@@ -41,7 +41,7 @@ struct ClockPresenceView: View {
         case "teal": return .teal
         case "indigo": return .indigo
         case "primary": return .primary
-        default: return .green
+        default: return .cyan
         }
     }
 
@@ -335,11 +335,11 @@ class BatteryMonitor: ObservableObject {
         if batteryLevel <= 20 {
             return .red
         } else if batteryLevel <= 50 {
-            return .orange
+            return .white
        } else if batteryLevel <= 70 {
-            return .yellow
+            return .white
         } else {
-            return .primary
+            return .white
         }
     }
 
