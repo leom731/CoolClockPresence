@@ -19,6 +19,7 @@ struct ClockPresenceView: View {
     @AppStorage("windowWidth") private var windowWidth: Double = 280
     @AppStorage("windowHeight") private var windowHeight: Double = 100
     @AppStorage("fontColorName") private var fontColorName: String = "cyan"
+    @AppStorage("showBattery") private var showBattery: Bool = true
 
     @State private var windowSize: CGSize = CGSize(width: 280, height: 100)
     @State private var isHovering: Bool = false
@@ -94,17 +95,21 @@ struct ClockPresenceView: View {
                                     Divider()
                                     Button("Default") { fontColorName = "primary" }
                                 }
+                                Divider()
+                                Toggle("Show Battery", isOn: $showBattery)
                             }
 
                         // Battery Status
-                        HStack(spacing: 4 * scale) {
-                            Image(systemName: batteryMonitor.batteryIcon)
-                                .font(.system(size: 19 * scale, weight: .medium))
-                                .foregroundStyle(batteryMonitor.batteryColor.opacity(0.92))
+                        if showBattery {
+                            HStack(spacing: 4 * scale) {
+                                Image(systemName: batteryMonitor.batteryIcon)
+                                    .font(.system(size: 19 * scale, weight: .medium))
+                                    .foregroundStyle(batteryMonitor.batteryColor.opacity(0.92))
 
-                            Text("\(batteryMonitor.batteryLevel)%")
-                                .font(batteryFont)
-                                .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
+                                Text("\(batteryMonitor.batteryLevel)%")
+                                    .font(batteryFont)
+                                    .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
+                            }
                         }
                     }
                     .padding(.vertical, 12 * scale)

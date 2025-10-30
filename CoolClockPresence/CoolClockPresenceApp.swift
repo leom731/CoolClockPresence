@@ -1,6 +1,8 @@
+// (c) 2025 Leo Manderico
+// COOL CLOCK PRESENCE
+// All rights reserved
 //
 //  CoolClockPresenceApp.swift
-//  CoolClockPresence
 //
 //  macOS entry point that presents the floating glass clock.
 //
