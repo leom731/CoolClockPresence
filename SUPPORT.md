@@ -1,7 +1,7 @@
 # CoolClockPresence Support
 
 ## Contact
-**Email:** leo.manderico@outlook.com
+**Email:** leoman.apps@gmail.com
 
 For bug reports, feature requests, or general questions, please email us.
 
