@@ -117,6 +117,10 @@ struct ClockPresenceView: View {
                 Toggle("Show Battery", isOn: $showBattery)
                 Toggle("Always on Top", isOn: $isAlwaysOnTop)
                 Divider()
+                Button("Show Onboarding Again") {
+                    NotificationCenter.default.post(name: NSNotification.Name("ShowOnboardingAgain"), object: nil)
+                }
+                Divider()
                 Button("Quit") {
                     NSApplication.shared.terminate(nil)
                 }

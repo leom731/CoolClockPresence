@@ -28,6 +28,7 @@ struct CoolClockPresenceApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSPanel?
+    var onboardingWindow: NSWindow?
     private let defaults = UserDefaults.standard
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -37,9 +38,59 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "windowX": -1.0,  // -1 means not set yet, will center on first launch
             "windowY": -1.0,
             "windowWidth": 280.0,
-            "windowHeight": 100.0
+            "windowHeight": 100.0,
+            "hasCompletedOnboarding": false
         ])
 
+        // Check if this is the first launch
+        let hasCompletedOnboarding = defaults.bool(forKey: "hasCompletedOnboarding")
+
+        if !hasCompletedOnboarding {
+            showOnboarding()
+        } else {
+            showMainClock()
+        }
+    }
+
+    private func showOnboarding() {
+        // Show the app in the dock while onboarding
+        NSApp.setActivationPolicy(.regular)
+
+        // Create onboarding window
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 480),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = "Welcome to CoolClockPresence"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        // Create onboarding view with binding
+        let onboardingView = OnboardingView(isPresented: .init(
+            get: { [weak self] in self?.onboardingWindow != nil },
+            set: { [weak self] isPresented in
+                if !isPresented {
+                    self?.onboardingWindow?.close()
+                    self?.onboardingWindow = nil
+                    // Show the main clock after onboarding
+                    self?.showMainClock()
+                }
+            }
+        ))
+
+        window.contentView = NSHostingView(rootView: onboardingView)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        self.onboardingWindow = window
+    }
+
+    private func showMainClock() {
         // Restore saved window size or use defaults
         let savedWidth = defaults.double(forKey: "windowWidth")
         let savedHeight = defaults.double(forKey: "windowHeight")
@@ -118,6 +169,59 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
         updateWindowLevel()
+
+        // Observe "Show Onboarding Again" request
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(showOnboardingAgain),
+            name: NSNotification.Name("ShowOnboardingAgain"),
+            object: nil
+        )
+    }
+
+    @objc private func showOnboardingAgain() {
+        // If onboarding window already exists, just bring it to front
+        if let existingWindow = onboardingWindow {
+            existingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        // Temporarily show app in dock
+        NSApp.setActivationPolicy(.regular)
+
+        // Create onboarding window
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 480),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = "CoolClockPresence Tutorial"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        // Create onboarding view with binding
+        let onboardingView = OnboardingView(isPresented: .init(
+            get: { [weak self] in self?.onboardingWindow != nil },
+            set: { [weak self] isPresented in
+                if !isPresented {
+                    self?.onboardingWindow?.close()
+                    self?.onboardingWindow = nil
+                    // Return to accessory mode (no dock icon)
+                    NSApp.setActivationPolicy(.accessory)
+                }
+            }
+        ))
+
+        window.contentView = NSHostingView(rootView: onboardingView)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        self.onboardingWindow = window
     }
 
     @objc private func updateWindowLevel() {
