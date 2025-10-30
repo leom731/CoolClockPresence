@@ -20,6 +20,7 @@ struct ClockPresenceView: View {
     @AppStorage("windowHeight") private var windowHeight: Double = 100
     @AppStorage("fontColorName") private var fontColorName: String = "cyan"
     @AppStorage("showBattery") private var showBattery: Bool = true
+    @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
 
     @State private var windowSize: CGSize = CGSize(width: 280, height: 100)
     @State private var isHovering: Bool = false
@@ -114,6 +115,12 @@ struct ClockPresenceView: View {
                 }
                 Divider()
                 Toggle("Show Battery", isOn: $showBattery)
+                Toggle("Always on Top", isOn: $isAlwaysOnTop)
+                Divider()
+                Button("Quit") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .keyboardShortcut("q", modifiers: .command)
             }
             .onAppear {
                 // Restore saved window size

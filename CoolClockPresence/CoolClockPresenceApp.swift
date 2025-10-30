@@ -22,10 +22,6 @@ struct CoolClockPresenceApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) { }
-            CommandMenu("View") {
-                Toggle("Always on Top", isOn: $isAlwaysOnTop)
-                    .keyboardShortcut("t", modifiers: [.command, .shift])
-            }
         }
     }
 }
