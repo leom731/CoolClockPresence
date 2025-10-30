@@ -64,70 +64,69 @@ struct ClockPresenceView: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let date = context.date
+        GeometryReader { geometry in
+            ZStack {
+                GlassBackdrop()
 
-            GeometryReader { geometry in
-                ZStack {
-                    GlassBackdrop()
-
-                    VStack(spacing: 4 * scale) {
-                        Text(date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute().second()))
+                VStack(spacing: 4 * scale) {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(context.date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute().second()))
                             .font(clockFont)
                             .foregroundStyle(fontColor.opacity(0.92))
                             .minimumScaleFactor(0.5)
                             .lineLimit(1)
-                            .contextMenu {
-                                Menu("Font Color") {
-                                    Button("White") { fontColorName = "white" }
-                                    Button("Black") { fontColorName = "black" }
-                                    Button("Red") { fontColorName = "red" }
-                                    Button("Orange") { fontColorName = "orange" }
-                                    Button("Yellow") { fontColorName = "yellow" }
-                                    Button("Green") { fontColorName = "green" }
-                                    Button("Blue") { fontColorName = "blue" }
-                                    Button("Purple") { fontColorName = "purple" }
-                                    Button("Pink") { fontColorName = "pink" }
-                                    Button("Cyan") { fontColorName = "cyan" }
-                                    Button("Mint") { fontColorName = "mint" }
-                                    Button("Teal") { fontColorName = "teal" }
-                                    Button("Indigo") { fontColorName = "indigo" }
-                                    Divider()
-                                    Button("Default") { fontColorName = "primary" }
-                                }
-                                Divider()
-                                Toggle("Show Battery", isOn: $showBattery)
-                            }
+                    }
 
-                        // Battery Status
-                        if showBattery {
-                            HStack(spacing: 4 * scale) {
-                                Image(systemName: batteryMonitor.batteryIcon)
-                                    .font(.system(size: 19 * scale, weight: .medium))
-                                    .foregroundStyle(batteryMonitor.batteryColor.opacity(0.92))
+                    // Battery Status
+                    if showBattery {
+                        HStack(spacing: 4 * scale) {
+                            Image(systemName: batteryMonitor.batteryIcon)
+                                .font(.system(size: 19 * scale, weight: .medium))
+                                .foregroundStyle(batteryMonitor.batteryColor.opacity(0.92))
 
-                                Text("\(batteryMonitor.batteryLevel)%")
-                                    .font(batteryFont)
-                                    .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
-                            }
+                            Text("\(batteryMonitor.batteryLevel)%")
+                                .font(batteryFont)
+                                .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
                         }
                     }
-                    .padding(.vertical, 12 * scale)
-                    .padding(.horizontal, 16 * scale)
                 }
-                .onAppear {
-                    // Restore saved window size
-                    windowSize = CGSize(width: windowWidth, height: windowHeight)
-                }
-                .onChange(of: geometry.size) { _, newSize in
-                    windowSize = newSize
-                    // Save window size
-                    windowWidth = newSize.width
-                    windowHeight = newSize.height
-                }
+                .padding(.vertical, 12 * scale)
+                .padding(.horizontal, 16 * scale)
             }
-            .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
+            .contentShape(Rectangle())
+            .contextMenu {
+                Menu("Font Color") {
+                    Button("White") { fontColorName = "white" }
+                    Button("Black") { fontColorName = "black" }
+                    Button("Red") { fontColorName = "red" }
+                    Button("Orange") { fontColorName = "orange" }
+                    Button("Yellow") { fontColorName = "yellow" }
+                    Button("Green") { fontColorName = "green" }
+                    Button("Blue") { fontColorName = "blue" }
+                    Button("Purple") { fontColorName = "purple" }
+                    Button("Pink") { fontColorName = "pink" }
+                    Button("Cyan") { fontColorName = "cyan" }
+                    Button("Mint") { fontColorName = "mint" }
+                    Button("Teal") { fontColorName = "teal" }
+                    Button("Indigo") { fontColorName = "indigo" }
+                    Divider()
+                    Button("Default") { fontColorName = "primary" }
+                }
+                Divider()
+                Toggle("Show Battery", isOn: $showBattery)
+            }
+            .onAppear {
+                // Restore saved window size
+                windowSize = CGSize(width: windowWidth, height: windowHeight)
+            }
+            .onChange(of: geometry.size) { _, newSize in
+                windowSize = newSize
+                // Save window size
+                windowWidth = newSize.width
+                windowHeight = newSize.height
+            }
         }
+        .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
         .ignoresSafeArea()
         .opacity((isHovering && !isCommandKeyPressed) ? 0 : 1)
         .animation(.easeInOut(duration: 0.2), value: isHovering)
