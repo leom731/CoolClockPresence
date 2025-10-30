@@ -38,7 +38,7 @@ We may update this privacy policy from time to time. Any changes will be posted 
 ## Contact Us
 If you have questions about this privacy policy, please contact:
 
-**Email:** leo.manderico@outlook.com
+**Email:** leoman.apps@gmail.com
 
 **Developer:** Leo Manderico
 
