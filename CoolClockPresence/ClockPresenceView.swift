@@ -131,10 +131,13 @@ struct ClockPresenceView: View {
                 windowSize = CGSize(width: windowWidth, height: windowHeight)
             }
             .onChange(of: geometry.size) { _, newSize in
-                windowSize = newSize
-                // Save window size
-                windowWidth = newSize.width
-                windowHeight = newSize.height
+                // Use Task to avoid layout recursion
+                Task { @MainActor in
+                    windowSize = newSize
+                    // Save window size
+                    windowWidth = newSize.width
+                    windowHeight = newSize.height
+                }
             }
         }
         .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)

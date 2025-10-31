@@ -22,14 +22,29 @@ struct CoolClockPresenceApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) { }
+
+            // Add standard App Menu with Quit option
+            CommandGroup(replacing: .appInfo) {
+                Button("About CoolClockPresence") {
+                    NSApp.orderFrontStandardAboutPanel(options: [
+                        .applicationName: "CoolClockPresence",
+                        .applicationVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                    ])
+                }
+            }
+
+            CommandGroup(after: .appInfo) {
+                Divider()
+            }
         }
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window: NSPanel?
     var onboardingWindow: NSWindow?
     private let defaults = UserDefaults.standard
+    private var statusItem: NSStatusItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set default preferences
@@ -42,6 +57,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "hasCompletedOnboarding": false
         ])
 
+        // Setup Menu Bar Extra (status bar item)
+        setupMenuBarExtra()
+
         // Check if this is the first launch
         let hasCompletedOnboarding = defaults.bool(forKey: "hasCompletedOnboarding")
 
@@ -50,6 +68,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             showMainClock()
         }
+    }
+
+    private func setupMenuBarExtra() {
+        // Create status bar item with clock icon
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+
+        if let button = statusItem?.button {
+            button.image = NSImage(systemSymbolName: "clock.fill", accessibilityDescription: "CoolClockPresence")
+            button.image?.isTemplate = true
+        }
+
+        // Create menu for status bar item
+        let menu = NSMenu()
+
+        menu.addItem(NSMenuItem(title: "Show Clock Window", action: #selector(toggleClockWindow), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "About CoolClockPresence", action: #selector(showAbout), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Show Onboarding Again", action: #selector(showOnboardingAgain), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Quit CoolClockPresence", action: #selector(quitApp), keyEquivalent: "q"))
+
+        statusItem?.menu = menu
+    }
+
+    @objc private func toggleClockWindow() {
+        guard let window = window else { return }
+        if window.isVisible {
+            window.orderOut(nil)
+        } else {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    @objc private func showAbout() {
+        NSApp.orderFrontStandardAboutPanel(options: [
+            NSApplication.AboutPanelOptionKey.applicationName: "CoolClockPresence",
+            NSApplication.AboutPanelOptionKey.applicationVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        ])
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func quitApp() {
+        NSApplication.shared.terminate(nil)
     }
 
     private func showOnboarding() {
@@ -97,26 +160,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let width = savedWidth > 0 ? savedWidth : 280
         let height = savedHeight > 0 ? savedHeight : 100
 
-        // Create a floating panel with saved size
+        // Create a floating panel with saved size - restore original working config with title bar buttons
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: width, height: height),
-            styleMask: [.nonactivatingPanel, .resizable, .fullSizeContentView],
+            styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
 
-        // Configure panel to appear on all spaces
+        // Configure panel to appear on all spaces including full screen (original working config)
+        panel.title = "CoolClockPresence"
         panel.isFloatingPanel = true
-        panel.level = .statusBar
+        panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.popUpMenuWindow)))
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
         panel.isMovableByWindowBackground = true
-        panel.titleVisibility = .hidden
+        panel.titleVisibility = .hidden  // Keep hidden as in original
         panel.titlebarAppearsTransparent = true
         panel.hidesOnDeactivate = false
-        panel.becomesKeyOnlyIfNeeded = true
+        panel.becomesKeyOnlyIfNeeded = true  // Restore original setting
+        panel.isRestorable = false  // Disable window restoration to fix className error
 
         // Set size constraints
         panel.contentMinSize = CGSize(width: 168, height: 60)
@@ -139,6 +204,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         panel.orderFrontRegardless()
+        panel.delegate = self
 
         self.window = panel
 
@@ -158,8 +224,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: panel
         )
 
-        // Keep app running as accessory (no dock icon)
-        NSApp.setActivationPolicy(.accessory)
+        // Show app in dock and menu bar (required by App Store)
+        NSApp.setActivationPolicy(.regular)
 
         // Observe changes to the alwaysOnTop setting
         NotificationCenter.default.addObserver(
@@ -211,8 +277,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if !isPresented {
                     self?.onboardingWindow?.close()
                     self?.onboardingWindow = nil
-                    // Return to accessory mode (no dock icon)
-                    NSApp.setActivationPolicy(.accessory)
+                    // Keep app visible in dock and menu bar
+                    NSApp.setActivationPolicy(.regular)
                 }
             }
         ))
@@ -227,21 +293,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func updateWindowLevel() {
         guard let panel = window else { return }
         let isAlwaysOnTop = UserDefaults.standard.bool(forKey: "clockPresence.alwaysOnTop")
-        panel.level = isAlwaysOnTop ? .statusBar : .normal
+        // Use high window level for full screen compatibility when always on top
+        panel.level = isAlwaysOnTop ? NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.popUpMenuWindow))) : .normal
     }
 
-    @objc private func windowDidMove(_ notification: Notification) {
+    @objc func windowDidMove(_ notification: Notification) {
         guard let panel = window else { return }
         let origin = panel.frame.origin
         defaults.set(origin.x, forKey: "windowX")
         defaults.set(origin.y, forKey: "windowY")
     }
 
-    @objc private func windowDidResize(_ notification: Notification) {
+    @objc func windowDidResize(_ notification: Notification) {
         guard let panel = window else { return }
         let size = panel.frame.size
         defaults.set(size.width, forKey: "windowWidth")
         defaults.set(size.height, forKey: "windowHeight")
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        // Hide window instead of closing when close button is clicked
+        // App can still be accessed from menu bar and can be quit from there
+        sender.orderOut(nil)
+        return false
     }
 }
 #endif
