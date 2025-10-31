@@ -363,6 +363,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             name: NSNotification.Name("ShowOnboardingAgain"),
             object: nil
         )
+
+        // Hide the standard window buttons completely
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
     }
 
     @objc private func showOnboardingAgain() {
