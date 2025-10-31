@@ -26,6 +26,8 @@ struct ClockPresenceView: View {
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
     @StateObject private var batteryMonitor = BatteryMonitor()
+    @StateObject private var purchaseManager = PurchaseManager.shared
+    @State private var showingPurchaseSheet = false
 
     private var fontColor: Color {
         switch fontColorName {
@@ -78,8 +80,8 @@ struct ClockPresenceView: View {
                             .lineLimit(1)
                     }
 
-                    // Battery Status
-                    if showBattery {
+                    // Battery Status (Premium Only)
+                    if showBattery && purchaseManager.isPremium {
                         HStack(spacing: 4 * scale) {
                             Image(systemName: batteryMonitor.batteryIcon)
                                 .font(.system(size: 19 * scale, weight: .medium))
@@ -97,26 +99,52 @@ struct ClockPresenceView: View {
             .contentShape(Rectangle())
             .contextMenu {
                 Menu("Font Color") {
+                    // Free colors
                     Button("White") { fontColorName = "white" }
-                    Button("Black") { fontColorName = "black" }
-                    Button("Red") { fontColorName = "red" }
-                    Button("Orange") { fontColorName = "orange" }
-                    Button("Yellow") { fontColorName = "yellow" }
-                    Button("Green") { fontColorName = "green" }
-                    Button("Blue") { fontColorName = "blue" }
-                    Button("Purple") { fontColorName = "purple" }
-                    Button("Pink") { fontColorName = "pink" }
                     Button("Cyan") { fontColorName = "cyan" }
-                    Button("Mint") { fontColorName = "mint" }
-                    Button("Teal") { fontColorName = "teal" }
-                    Button("Indigo") { fontColorName = "indigo" }
-                    Divider()
                     Button("Default") { fontColorName = "primary" }
+
+                    // Premium colors
+                    if purchaseManager.isPremium {
+                        Divider()
+                        Button("Black") { fontColorName = "black" }
+                        Button("Red") { fontColorName = "red" }
+                        Button("Orange") { fontColorName = "orange" }
+                        Button("Yellow") { fontColorName = "yellow" }
+                        Button("Green") { fontColorName = "green" }
+                        Button("Blue") { fontColorName = "blue" }
+                        Button("Purple") { fontColorName = "purple" }
+                        Button("Pink") { fontColorName = "pink" }
+                        Button("Mint") { fontColorName = "mint" }
+                        Button("Teal") { fontColorName = "teal" }
+                        Button("Indigo") { fontColorName = "indigo" }
+                    }
                 }
                 Divider()
-                Toggle("Show Battery", isOn: $showBattery)
-                Toggle("Always on Top", isOn: $isAlwaysOnTop)
+
+                // Premium features
+                if purchaseManager.isPremium {
+                    Toggle("Show Battery", isOn: $showBattery)
+                    Toggle("Always on Top", isOn: $isAlwaysOnTop)
+                } else {
+                    Button("Show Battery 🔒 Premium") {
+                        showingPurchaseSheet = true
+                    }
+                    Button("Always on Top 🔒 Premium") {
+                        showingPurchaseSheet = true
+                    }
+                }
+
                 Divider()
+
+                // Upgrade option
+                if !purchaseManager.isPremium {
+                    Button("⭐️ Upgrade to Premium ($0.99)") {
+                        showingPurchaseSheet = true
+                    }
+                    Divider()
+                }
+
                 Button("Show Onboarding Again") {
                     NotificationCenter.default.post(name: NSNotification.Name("ShowOnboardingAgain"), object: nil)
                 }
@@ -125,6 +153,9 @@ struct ClockPresenceView: View {
                     NSApplication.shared.terminate(nil)
                 }
                 .keyboardShortcut("q", modifiers: .command)
+            }
+            .sheet(isPresented: $showingPurchaseSheet) {
+                PurchaseView()
             }
             .onAppear {
                 // Restore saved window size
@@ -142,10 +173,10 @@ struct ClockPresenceView: View {
         }
         .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
         .ignoresSafeArea()
-        .opacity((isHovering && !isCommandKeyPressed) ? 0 : 1)
+        .opacity((isHovering && !isCommandKeyPressed && purchaseManager.isPremium) ? 0 : 1)
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
-        .background(HoverDetector(isHovering: $isHovering, isCommandKeyPressed: $isCommandKeyPressed))
+        .background(HoverDetector(isHovering: $isHovering, isCommandKeyPressed: $isCommandKeyPressed, isPremium: purchaseManager.isPremium))
     }
 }
 
@@ -154,9 +185,11 @@ struct ClockPresenceView: View {
 struct HoverDetector: NSViewRepresentable {
     @Binding var isHovering: Bool
     @Binding var isCommandKeyPressed: Bool
+    let isPremium: Bool
 
     func makeNSView(context: Context) -> NSView {
         let view = HoverView()
+        view.isPremium = isPremium
         view.onHoverChange = { hovering in
             isHovering = hovering
         }
@@ -164,15 +197,19 @@ struct HoverDetector: NSViewRepresentable {
             isCommandKeyPressed = commandPressed
         }
         view.onShouldIgnoreMouseEvents = { shouldIgnore in
-            // Make window click-through only when hovering without command key
-            if let window = view.window {
+            // Make window click-through only when hovering without command key (Premium only)
+            if let window = view.window, view.isPremium {
                 window.ignoresMouseEvents = shouldIgnore
             }
         }
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let hoverView = nsView as? HoverView {
+            hoverView.isPremium = isPremium
+        }
+    }
 }
 
 class HoverView: NSView {
@@ -180,6 +217,7 @@ class HoverView: NSView {
     var onHoverChange: ((Bool) -> Void)?
     var onCommandKeyChange: ((Bool) -> Void)?
     var onShouldIgnoreMouseEvents: ((Bool) -> Void)?
+    var isPremium: Bool = false
 
     private var trackingArea: NSTrackingArea?
     private var isHovering: Bool = false
@@ -220,8 +258,8 @@ class HoverView: NSView {
     }
 
     private func updateMouseEventHandling() {
-        // Only ignore mouse events when hovering AND command key is NOT pressed
-        let shouldIgnore = isHovering && !isCommandPressed
+        // Only ignore mouse events when hovering AND command key is NOT pressed (Premium only)
+        let shouldIgnore = isHovering && !isCommandPressed && isPremium
         onShouldIgnoreMouseEvents?(shouldIgnore)
     }
 

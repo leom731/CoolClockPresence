@@ -21,7 +21,8 @@ struct OnboardingView: View {
             iconColor: .cyan,
             title: "Welcome to CoolClockPresence",
             description: "A beautiful floating glass clock that stays on your screen",
-            features: []
+            features: [],
+            isPremiumPage: false
         ),
         OnboardingPage(
             icon: "hand.tap.fill",
@@ -31,21 +32,23 @@ struct OnboardingView: View {
             features: [
                 "Drag anywhere to move",
                 "Resize from corners/edges",
-                "Hover to make transparent",
-                "Hold ⌘ (Cmd) while hovering to keep visible"
-            ]
+                "Access settings from menu bar or right-click"
+            ],
+            isPremiumPage: false
         ),
         OnboardingPage(
-            icon: "paintpalette.fill",
-            iconColor: .pink,
-            title: "Customize Your Clock",
-            description: "Right-click the clock to access settings",
+            icon: "star.circle.fill",
+            iconColor: .yellow,
+            title: "Upgrade to Premium",
+            description: "Unlock powerful features for just $0.99",
             features: [
-                "Choose from 13+ font colors",
-                "Toggle battery display",
-                "Set \"Always on Top\" mode",
-                "Your preferences are auto-saved"
-            ]
+                "Battery Monitor - Track battery level and charging",
+                "All Font Colors - 13+ beautiful color options",
+                "Always on Top - Keep clock over all windows",
+                "Hover Transparency - Auto-fade for clear view",
+                "Position Memory - Remember window location"
+            ],
+            isPremiumPage: true
         ),
         OnboardingPage(
             icon: "checkmark.circle.fill",
@@ -55,8 +58,9 @@ struct OnboardingView: View {
             features: [
                 "Press ⌘Q to quit anytime",
                 "The clock appears on all desktops",
-                "Your position & size are remembered"
-            ]
+                "Access all settings from menu bar or right-click"
+            ],
+            isPremiumPage: false
         )
     ]
 
@@ -144,12 +148,14 @@ struct OnboardingPage {
     let title: String
     let description: String
     let features: [String]
+    let isPremiumPage: Bool
 }
 
 // MARK: - Onboarding Page View
 
 struct OnboardingPageView: View {
     let page: OnboardingPage
+    @State private var showingPurchaseView = false
 
     var body: some View {
         ScrollView {
@@ -187,7 +193,7 @@ struct OnboardingPageView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(page.features, id: \.self) { feature in
                             HStack(alignment: .top, spacing: 10) {
-                                Image(systemName: "checkmark.circle.fill")
+                                Image(systemName: page.isPremiumPage ? "star.fill" : "checkmark.circle.fill")
                                     .font(.system(size: 15))
                                     .foregroundStyle(page.iconColor)
 
@@ -204,12 +210,24 @@ struct OnboardingPageView: View {
                     .padding(.top, 8)
                 }
 
+                // Premium button
+                if page.isPremiumPage {
+                    Button("View Premium Features") {
+                        showingPurchaseView = true
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .padding(.top, 12)
+                }
+
                 Spacer(minLength: 20)
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 380)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showingPurchaseView) {
+            PurchaseView()
+        }
     }
 }
 

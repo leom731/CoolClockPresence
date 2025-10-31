@@ -79,11 +79,78 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             button.image?.isTemplate = true
         }
 
-        // Create menu for status bar item
-        let menu = NSMenu()
+        // Build menu dynamically
+        updateMenuBarMenu()
 
+        // Observe premium status changes to rebuild menu
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateMenuBarMenu),
+            name: UserDefaults.didChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func updateMenuBarMenu() {
+        let menu = NSMenu()
+        let isPremium = defaults.bool(forKey: "isPremiumUnlocked")
+
+        // Show/Hide Clock Window
         menu.addItem(NSMenuItem(title: "Show Clock Window", action: #selector(toggleClockWindow), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
+
+        // Font Color submenu
+        let fontColorMenu = NSMenu()
+
+        // Free colors
+        fontColorMenu.addItem(createFontColorMenuItem(title: "White", colorName: "white"))
+        fontColorMenu.addItem(createFontColorMenuItem(title: "Cyan", colorName: "cyan"))
+        fontColorMenu.addItem(createFontColorMenuItem(title: "Default", colorName: "primary"))
+
+        // Premium colors
+        if isPremium {
+            fontColorMenu.addItem(NSMenuItem.separator())
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Black", colorName: "black"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Red", colorName: "red"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Orange", colorName: "orange"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Yellow", colorName: "yellow"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Green", colorName: "green"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Blue", colorName: "blue"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Purple", colorName: "purple"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Pink", colorName: "pink"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Mint", colorName: "mint"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Teal", colorName: "teal"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Indigo", colorName: "indigo"))
+        }
+
+        let fontColorItem = NSMenuItem(title: "Font Color", action: nil, keyEquivalent: "")
+        fontColorItem.submenu = fontColorMenu
+        menu.addItem(fontColorItem)
+        menu.addItem(NSMenuItem.separator())
+
+        // Premium features
+        if isPremium {
+            let showBatteryItem = NSMenuItem(title: "Show Battery", action: #selector(toggleBattery), keyEquivalent: "")
+            showBatteryItem.state = defaults.bool(forKey: "showBattery") ? .on : .off
+            menu.addItem(showBatteryItem)
+
+            let alwaysOnTopItem = NSMenuItem(title: "Always on Top", action: #selector(toggleAlwaysOnTop), keyEquivalent: "")
+            alwaysOnTopItem.state = defaults.bool(forKey: "clockPresence.alwaysOnTop") ? .on : .off
+            menu.addItem(alwaysOnTopItem)
+        } else {
+            menu.addItem(NSMenuItem(title: "Show Battery 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Always on Top 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
+        }
+
+        menu.addItem(NSMenuItem.separator())
+
+        // Upgrade option
+        if !isPremium {
+            menu.addItem(NSMenuItem(title: "⭐️ Upgrade to Premium ($0.99)", action: #selector(showPurchaseView), keyEquivalent: ""))
+            menu.addItem(NSMenuItem.separator())
+        }
+
+        // About and other options
         menu.addItem(NSMenuItem(title: "About CoolClockPresence", action: #selector(showAbout), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Show Onboarding Again", action: #selector(showOnboardingAgain), keyEquivalent: ""))
@@ -91,6 +158,59 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(NSMenuItem(title: "Quit CoolClockPresence", action: #selector(quitApp), keyEquivalent: "q"))
 
         statusItem?.menu = menu
+    }
+
+    private func createFontColorMenuItem(title: String, colorName: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: #selector(changeFontColor(_:)), keyEquivalent: "")
+        item.representedObject = colorName
+
+        // Add checkmark if this is the current color
+        let currentColor = defaults.string(forKey: "fontColorName") ?? "cyan"
+        if currentColor == colorName {
+            item.state = .on
+        }
+
+        return item
+    }
+
+    @objc private func changeFontColor(_ sender: NSMenuItem) {
+        if let colorName = sender.representedObject as? String {
+            defaults.set(colorName, forKey: "fontColorName")
+            updateMenuBarMenu()
+        }
+    }
+
+    @objc private func toggleBattery() {
+        let current = defaults.bool(forKey: "showBattery")
+        defaults.set(!current, forKey: "showBattery")
+        updateMenuBarMenu()
+    }
+
+    @objc private func toggleAlwaysOnTop() {
+        let current = defaults.bool(forKey: "clockPresence.alwaysOnTop")
+        defaults.set(!current, forKey: "clockPresence.alwaysOnTop")
+        updateMenuBarMenu()
+    }
+
+    @objc private func showPurchaseView() {
+        // Show purchase view in a new window
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = "Upgrade to Premium"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        let purchaseView = PurchaseView()
+        window.contentView = NSHostingView(rootView: purchaseView)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func toggleClockWindow() {
