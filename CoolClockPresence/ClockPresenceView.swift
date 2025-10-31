@@ -398,7 +398,7 @@ class BatteryMonitor: ObservableObject {
         } else if batteryLevel <= 50 {
             return .orange
         } else if batteryLevel <= 70 {
-            return .yellow
+            return Color(red: 0.996, green: 0.784, blue: 0.294)
         } else {
             return .green
         }
