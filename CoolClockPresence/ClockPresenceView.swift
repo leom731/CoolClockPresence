@@ -16,14 +16,11 @@ import IOKit.ps
 
 /// A compact glass-inspired clock that can float above other windows.
 struct ClockPresenceView: View {
-    @AppStorage("windowWidth") private var windowWidth: Double = 280
-    @AppStorage("windowHeight") private var windowHeight: Double = 100
     @AppStorage("fontColorName") private var fontColorName: String = "cyan"
     @AppStorage("showBattery") private var showBattery: Bool = true
     @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
     @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
 
-    @State private var windowSize: CGSize = CGSize(width: 280, height: 100)
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
     @StateObject private var batteryMonitor = BatteryMonitor()
@@ -52,30 +49,30 @@ struct ClockPresenceView: View {
 
     private let baseSize = CGSize(width: 280, height: 100)
 
-    private var scale: CGFloat {
-        // Calculate scale based on current window size relative to base size
-        let widthScale = windowSize.width / baseSize.width
-        let heightScale = windowSize.height / baseSize.height
+    private func scale(for size: CGSize) -> CGFloat {
+        let widthScale = size.width / baseSize.width
+        let heightScale = size.height / baseSize.height
         return min(widthScale, heightScale)
     }
 
-    private var clockFont: Font {
+    private func clockFont(for scale: CGFloat) -> Font {
         .system(size: 38 * scale, weight: .semibold, design: .rounded)
     }
 
-    private var batteryFont: Font {
+    private func batteryFont(for scale: CGFloat) -> Font {
         .system(size: 19 * scale, weight: .medium, design: .rounded)
     }
 
     var body: some View {
         GeometryReader { geometry in
+            let currentScale = scale(for: geometry.size)
             ZStack {
                 GlassBackdrop()
 
-                VStack(spacing: 4 * scale) {
+                VStack(spacing: 4 * currentScale) {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(context.date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute().second()))
-                            .font(clockFont)
+                            .font(clockFont(for: currentScale))
                             .foregroundStyle(fontColor.opacity(0.92))
                             .minimumScaleFactor(0.5)
                             .lineLimit(1)
@@ -83,19 +80,19 @@ struct ClockPresenceView: View {
 
                     // Battery Status (Premium Only)
                     if showBattery && purchaseManager.isPremium {
-                        HStack(spacing: 4 * scale) {
+                        HStack(spacing: 4 * currentScale) {
                             Image(systemName: batteryMonitor.batteryIcon)
-                                .font(.system(size: 19 * scale, weight: .medium))
+                                .font(.system(size: 19 * currentScale, weight: .medium))
                                 .foregroundStyle(batteryMonitor.batteryColor.opacity(0.92))
 
                             Text("\(batteryMonitor.batteryLevel)%")
-                                .font(batteryFont)
+                                .font(batteryFont(for: currentScale))
                                 .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
                         }
                     }
                 }
-                .padding(.vertical, 12 * scale)
-                .padding(.horizontal, 16 * scale)
+                .padding(.vertical, 12 * currentScale)
+                .padding(.horizontal, 16 * currentScale)
             }
             .contentShape(Rectangle())
             .contextMenu {
@@ -161,19 +158,6 @@ struct ClockPresenceView: View {
             }
             .sheet(isPresented: $showingPurchaseSheet) {
                 PurchaseView()
-            }
-            .onAppear {
-                // Restore saved window size
-                windowSize = CGSize(width: windowWidth, height: windowHeight)
-            }
-            .onChange(of: geometry.size) { _, newSize in
-                // Use Task to avoid layout recursion
-                Task { @MainActor in
-                    windowSize = newSize
-                    // Save window size
-                    windowWidth = newSize.width
-                    windowHeight = newSize.height
-                }
             }
         }
         .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
