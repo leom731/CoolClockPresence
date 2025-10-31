@@ -36,6 +36,14 @@ struct CoolClockPresenceApp: App {
             CommandGroup(after: .appInfo) {
                 Divider()
             }
+
+            // Add Help menu
+            CommandGroup(replacing: .help) {
+                Button("CoolClockPresence Help") {
+                    NotificationCenter.default.post(name: NSNotification.Name("ShowHelpWindow"), object: nil)
+                }
+                .keyboardShortcut("?", modifiers: .command)
+            }
         }
     }
 }
@@ -43,6 +51,7 @@ struct CoolClockPresenceApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window: NSPanel?
     var onboardingWindow: NSWindow?
+    var helpWindow: NSWindow?
     private let defaults = UserDefaults.standard
     private var statusItem: NSStatusItem?
 
@@ -152,6 +161,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // About and other options
         menu.addItem(NSMenuItem(title: "About CoolClockPresence", action: #selector(showAbout), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelpWindow), keyEquivalent: "?"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Show Onboarding Again", action: #selector(showOnboardingAgain), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
@@ -233,6 +243,45 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
+    }
+
+    @objc private func showHelpWindow() {
+        // If help window already exists, just bring it to front
+        if let existingWindow = helpWindow {
+            existingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        // Create help window
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 500),
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = "CoolClockPresence Help"
+        window.titlebarAppearsTransparent = false
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.setFrameAutosaveName("HelpWindow")
+
+        let helpView = HelpView(isPresented: .init(
+            get: { [weak self] in self?.helpWindow != nil },
+            set: { [weak self] isPresented in
+                if !isPresented {
+                    self?.helpWindow?.close()
+                    self?.helpWindow = nil
+                }
+            }
+        ))
+
+        window.contentView = NSHostingView(rootView: helpView)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        self.helpWindow = window
     }
 
     private func showOnboarding() {
@@ -361,6 +410,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self,
             selector: #selector(showOnboardingAgain),
             name: NSNotification.Name("ShowOnboardingAgain"),
+            object: nil
+        )
+
+        // Observe "Show Help Window" request
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(showHelpWindow),
+            name: NSNotification.Name("ShowHelpWindow"),
             object: nil
         )
 
