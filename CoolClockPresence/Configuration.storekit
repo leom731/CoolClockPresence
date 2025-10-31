@@ -1,0 +1,35 @@
+{
+  "identifier" : "8E8A5B0D",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "6739048001",
+      "localizations" : [
+        {
+          "description" : "Unlock battery monitoring, all 13+ font colors, always on top mode, hover transparency, and position memory features.",
+          "displayName" : "Premium Features",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.leomanderico.coolclockpresence.premium",
+      "referenceName" : "Premium Features",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6739048001",
+    "_developerTeamID" : "6GCK4B5298",
+    "_lastSynchronizedDate" : 753868800.0
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
