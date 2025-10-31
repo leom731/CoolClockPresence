@@ -21,6 +21,7 @@ struct ClockPresenceView: View {
     @AppStorage("fontColorName") private var fontColorName: String = "cyan"
     @AppStorage("showBattery") private var showBattery: Bool = true
     @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
+    @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
 
     @State private var windowSize: CGSize = CGSize(width: 280, height: 100)
     @State private var isHovering: Bool = false
@@ -126,11 +127,15 @@ struct ClockPresenceView: View {
                 if purchaseManager.isPremium {
                     Toggle("Show Battery", isOn: $showBattery)
                     Toggle("Always on Top", isOn: $isAlwaysOnTop)
+                    Toggle("Disappear on Hover", isOn: $disappearOnHover)
                 } else {
                     Button("Show Battery 🔒 Premium") {
                         showingPurchaseSheet = true
                     }
                     Button("Always on Top 🔒 Premium") {
+                        showingPurchaseSheet = true
+                    }
+                    Button("Disappear on Hover 🔒 Premium") {
                         showingPurchaseSheet = true
                     }
                 }
@@ -173,10 +178,10 @@ struct ClockPresenceView: View {
         }
         .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
         .ignoresSafeArea()
-        .opacity((isHovering && !isCommandKeyPressed && purchaseManager.isPremium) ? 0 : 1)
+        .opacity((isHovering && !isCommandKeyPressed && purchaseManager.isPremium && disappearOnHover) ? 0 : 1)
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
-        .background(HoverDetector(isHovering: $isHovering, isCommandKeyPressed: $isCommandKeyPressed, isPremium: purchaseManager.isPremium))
+        .background(HoverDetector(isHovering: $isHovering, isCommandKeyPressed: $isCommandKeyPressed, isPremium: purchaseManager.isPremium, disappearOnHover: disappearOnHover))
     }
 }
 
@@ -186,10 +191,12 @@ struct HoverDetector: NSViewRepresentable {
     @Binding var isHovering: Bool
     @Binding var isCommandKeyPressed: Bool
     let isPremium: Bool
+    let disappearOnHover: Bool
 
     func makeNSView(context: Context) -> NSView {
         let view = HoverView()
         view.isPremium = isPremium
+        view.disappearOnHover = disappearOnHover
         view.onHoverChange = { hovering in
             isHovering = hovering
         }
@@ -197,8 +204,8 @@ struct HoverDetector: NSViewRepresentable {
             isCommandKeyPressed = commandPressed
         }
         view.onShouldIgnoreMouseEvents = { shouldIgnore in
-            // Make window click-through only when hovering without command key (Premium only)
-            if let window = view.window, view.isPremium {
+            // Make window click-through only when hovering without command key (Premium only with disappear on hover enabled)
+            if let window = view.window, view.isPremium, view.disappearOnHover {
                 window.ignoresMouseEvents = shouldIgnore
             }
         }
@@ -208,6 +215,7 @@ struct HoverDetector: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {
         if let hoverView = nsView as? HoverView {
             hoverView.isPremium = isPremium
+            hoverView.disappearOnHover = disappearOnHover
         }
     }
 }
@@ -218,6 +226,7 @@ class HoverView: NSView {
     var onCommandKeyChange: ((Bool) -> Void)?
     var onShouldIgnoreMouseEvents: ((Bool) -> Void)?
     var isPremium: Bool = false
+    var disappearOnHover: Bool = true
 
     private var trackingArea: NSTrackingArea?
     private var isHovering: Bool = false
@@ -258,8 +267,8 @@ class HoverView: NSView {
     }
 
     private func updateMouseEventHandling() {
-        // Only ignore mouse events when hovering AND command key is NOT pressed (Premium only)
-        let shouldIgnore = isHovering && !isCommandPressed && isPremium
+        // Only ignore mouse events when hovering AND command key is NOT pressed (Premium only with disappear on hover enabled)
+        let shouldIgnore = isHovering && !isCommandPressed && isPremium && disappearOnHover
         onShouldIgnoreMouseEvents?(shouldIgnore)
     }
 

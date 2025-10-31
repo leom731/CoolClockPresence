@@ -59,6 +59,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Set default preferences
         defaults.register(defaults: [
             "clockPresence.alwaysOnTop": true,
+            "disappearOnHover": true,
             "windowX": -1.0,  // -1 means not set yet, will center on first launch
             "windowY": -1.0,
             "windowWidth": 280.0,
@@ -146,9 +147,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let alwaysOnTopItem = NSMenuItem(title: "Always on Top", action: #selector(toggleAlwaysOnTop), keyEquivalent: "")
             alwaysOnTopItem.state = defaults.bool(forKey: "clockPresence.alwaysOnTop") ? .on : .off
             menu.addItem(alwaysOnTopItem)
+
+            let disappearOnHoverItem = NSMenuItem(title: "Disappear on Hover", action: #selector(toggleDisappearOnHover), keyEquivalent: "")
+            disappearOnHoverItem.state = defaults.bool(forKey: "disappearOnHover") ? .on : .off
+            menu.addItem(disappearOnHoverItem)
         } else {
             menu.addItem(NSMenuItem(title: "Show Battery 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Always on Top 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Disappear on Hover 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
         }
 
         menu.addItem(NSMenuItem.separator())
@@ -199,6 +205,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func toggleAlwaysOnTop() {
         let current = defaults.bool(forKey: "clockPresence.alwaysOnTop")
         defaults.set(!current, forKey: "clockPresence.alwaysOnTop")
+        updateMenuBarMenu()
+    }
+
+    @objc private func toggleDisappearOnHover() {
+        let current = defaults.bool(forKey: "disappearOnHover")
+        defaults.set(!current, forKey: "disappearOnHover")
         updateMenuBarMenu()
     }
 
