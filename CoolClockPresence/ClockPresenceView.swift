@@ -389,7 +389,7 @@ struct BatteryIndicatorView: View {
             return .green
         }
 
-        if level <= 20 {
+        if level <= 35 {
             return .red
         } else if level <= 50 {
             return .orange
