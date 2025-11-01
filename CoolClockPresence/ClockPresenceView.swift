@@ -27,6 +27,7 @@ struct ClockPresenceView: View {
     @StateObject private var batteryMonitor = BatteryMonitor()
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var showingPurchaseSheet = false
+    @State private var showBatteryPercentage: Bool = true
 
     private var fontColor: Color {
         switch fontColorName {
@@ -95,6 +96,7 @@ struct ClockPresenceView: View {
                             Text("\(batteryMonitor.batteryLevel)%")
                                 .font(batteryFont(for: currentScale))
                                 .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
+                                .opacity(batteryMonitor.batteryLevel <= 20 ? (showBatteryPercentage ? 1 : 0) : 1)
                         }
                     }
                 }
@@ -177,6 +179,13 @@ struct ClockPresenceView: View {
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
         .background(HoverDetector(isHovering: $isHovering, isCommandKeyPressed: $isCommandKeyPressed, isPremium: purchaseManager.isPremium, disappearOnHover: disappearOnHover))
+        .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
+            if batteryMonitor.batteryLevel <= 20 {
+                showBatteryPercentage.toggle()
+            } else {
+                showBatteryPercentage = true
+            }
+        }
     }
 }
 
@@ -389,10 +398,10 @@ struct BatteryIndicatorView: View {
             return .green
         }
 
-        if level <= 35 {
+        if level <= 20 {
             return .red
         } else if level <= 50 {
-            return .orange
+            return .white
         } else {
             return .white
         }
