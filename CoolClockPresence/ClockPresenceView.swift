@@ -173,12 +173,21 @@ struct ClockPresenceView: View {
                 PurchaseView()
             }
         }
+        .overlay(
+            HoverAndWindowController(
+                isHovering: $isHovering,
+                isCommandKeyPressed: $isCommandKeyPressed,
+                isPremium: purchaseManager.isPremium,
+                disappearOnHover: disappearOnHover
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(false)
+        )
         .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
         .ignoresSafeArea()
         .opacity((isHovering && !isCommandKeyPressed && purchaseManager.isPremium && disappearOnHover) ? 0 : 1)
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
-        .background(HoverDetector(isHovering: $isHovering, isCommandKeyPressed: $isCommandKeyPressed, isPremium: purchaseManager.isPremium, disappearOnHover: disappearOnHover))
         .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
             if batteryMonitor.batteryLevel <= 25 {
                 showBatteryPercentage.toggle()
@@ -189,66 +198,73 @@ struct ClockPresenceView: View {
     }
 }
 
-// MARK: - Hover Detector
+// MARK: - Hover And Window Controller
 
-struct HoverDetector: NSViewRepresentable {
+struct HoverAndWindowController: NSViewRepresentable {
     @Binding var isHovering: Bool
     @Binding var isCommandKeyPressed: Bool
     let isPremium: Bool
     let disappearOnHover: Bool
 
-    func makeNSView(context: Context) -> NSView {
-        let view = HoverView()
-        view.isPremium = isPremium
-        view.disappearOnHover = disappearOnHover
-        view.onHoverChange = { hovering in
-            isHovering = hovering
-        }
-        view.onCommandKeyChange = { commandPressed in
-            isCommandKeyPressed = commandPressed
-        }
-        view.onShouldIgnoreMouseEvents = { [weak view] shouldIgnore in
-            guard let view = view else { return }
-            view.applyWindowMouseEventSetting(shouldIgnore)
-        }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isHovering: $isHovering, isCommandKeyPressed: $isCommandKeyPressed)
+    }
+
+    func makeNSView(context: Context) -> HoverControlView {
+        let view = HoverControlView()
+        view.coordinator = context.coordinator
+        context.coordinator.isPremium = isPremium
+        context.coordinator.disappearOnHover = disappearOnHover
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        if let hoverView = nsView as? HoverView {
-            hoverView.isPremium = isPremium
-            hoverView.disappearOnHover = disappearOnHover
-            hoverView.requestMouseEventRefresh()
+    func updateNSView(_ nsView: HoverControlView, context: Context) {
+        // Only update coordinator properties - DON'T trigger window updates here
+        context.coordinator.isPremium = isPremium
+        context.coordinator.disappearOnHover = disappearOnHover
+    }
+
+    class Coordinator {
+        @Binding var isHovering: Bool
+        @Binding var isCommandKeyPressed: Bool
+        var isPremium: Bool = false
+        var disappearOnHover: Bool = true
+
+        private var updateWorkItem: DispatchWorkItem?
+
+        init(isHovering: Binding<Bool>, isCommandKeyPressed: Binding<Bool>) {
+            _isHovering = isHovering
+            _isCommandKeyPressed = isCommandKeyPressed
+        }
+
+        func updateWindow(_ window: NSWindow?, hovering: Bool, commandPressed: Bool) {
+            // Cancel any pending updates
+            updateWorkItem?.cancel()
+
+            // Calculate the desired state
+            let shouldIgnore = hovering && !commandPressed && isPremium && disappearOnHover
+
+            // Create a new work item
+            let workItem = DispatchWorkItem { [weak window] in
+                guard let window = window else { return }
+                // Only update if actually different
+                if window.ignoresMouseEvents != shouldIgnore {
+                    window.ignoresMouseEvents = shouldIgnore
+                }
+            }
+
+            updateWorkItem = workItem
+
+            // Schedule it to run AFTER the current layout pass
+            DispatchQueue.main.async(execute: workItem)
         }
     }
 }
 
-class HoverView: NSView {
-    var onHoverChange: ((Bool) -> Void)?
-    var onCommandKeyChange: ((Bool) -> Void)?
-    var onShouldIgnoreMouseEvents: ((Bool) -> Void)?
-    var isPremium: Bool = false {
-        didSet {
-            if isPremium != oldValue {
-                requestMouseEventRefresh()
-            }
-        }
-    }
-    var disappearOnHover: Bool = true {
-        didSet {
-            if disappearOnHover != oldValue {
-                requestMouseEventRefresh()
-            }
-        }
-    }
-
+class HoverControlView: NSView {
+    weak var coordinator: HoverAndWindowController.Coordinator?
     private var trackingArea: NSTrackingArea?
-    private var isHovering: Bool = false
-    private var isCommandPressed: Bool = false
-    private var ignoringMouseEvents: Bool = false
-    private weak var lastAppliedWindow: NSWindow?
     private var eventMonitor: Any?
-    private var pendingRefresh = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -266,123 +282,67 @@ class HoverView: NSView {
         }
     }
 
+    // Return zero intrinsic content size to not influence layout
+    override var intrinsicContentSize: NSSize {
+        return NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+
+    // Override layout - call super.layout() as recommended by Apple
+    override func layout() {
+        super.layout()
+        // Tracking areas are updated via updateTrackingAreas callback
+    }
+
     private func setupCommandKeyMonitor() {
-        // Monitor for flag changes (modifier keys)
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.setCommandKeyState(event.modifierFlags.contains(.command))
+            let isPressed = event.modifierFlags.contains(.command)
+            self?.coordinator?.isCommandKeyPressed = isPressed
+            self?.updateWindowState()
             return event
         }
-    }
-
-    private func setHoverState(_ hovering: Bool) {
-        if isHovering != hovering {
-            isHovering = hovering
-            scheduleHoverChange(hovering)
-        }
-        updateMouseEventHandling()
-    }
-
-    private func setCommandKeyState(_ commandPressed: Bool) {
-        if isCommandPressed != commandPressed {
-            isCommandPressed = commandPressed
-            scheduleCommandKeyChange(commandPressed)
-        }
-        updateMouseEventHandling()
-    }
-
-    private func scheduleHoverChange(_ hovering: Bool) {
-        guard onHoverChange != nil else { return }
-        DispatchQueue.main.async { [weak self] in
-            self?.onHoverChange?(hovering)
-        }
-    }
-
-    private func scheduleCommandKeyChange(_ commandPressed: Bool) {
-        guard onCommandKeyChange != nil else { return }
-        DispatchQueue.main.async { [weak self] in
-            self?.onCommandKeyChange?(commandPressed)
-        }
-    }
-
-    private func scheduleIgnoreMouseEvents(_ shouldIgnore: Bool) {
-        guard onShouldIgnoreMouseEvents != nil else { return }
-        DispatchQueue.main.async { [weak self] in
-            self?.onShouldIgnoreMouseEvents?(shouldIgnore)
-        }
-    }
-
-    private func updateMouseEventHandling() {
-        // Only ignore mouse events when hovering AND command key is NOT pressed (Premium only with disappear on hover enabled)
-        let shouldIgnore = isHovering && !isCommandPressed && isPremium && disappearOnHover
-        let currentWindow = window
-        let windowChanged = currentWindow !== lastAppliedWindow
-
-        guard shouldIgnore != ignoringMouseEvents || windowChanged else { return }
-
-        ignoringMouseEvents = shouldIgnore
-        lastAppliedWindow = currentWindow
-        scheduleIgnoreMouseEvents(shouldIgnore)
-    }
-
-    func requestMouseEventRefresh() {
-        guard !pendingRefresh else { return }
-        pendingRefresh = true
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.pendingRefresh = false
-            self.updateMouseEventHandling()
-        }
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        requestMouseEventRefresh()
     }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
 
-        if let existingTrackingArea = trackingArea {
-            removeTrackingArea(existingTrackingArea)
-        }
+        // Defer tracking area setup to avoid triggering during layout
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
 
-        let options: NSTrackingArea.Options = [
-            .mouseEnteredAndExited,
-            .activeAlways,
-            .inVisibleRect
-        ]
+            if let existingTrackingArea = self.trackingArea {
+                self.removeTrackingArea(existingTrackingArea)
+            }
 
-        trackingArea = NSTrackingArea(
-            rect: bounds,
-            options: options,
-            owner: self,
-            userInfo: nil
-        )
+            self.trackingArea = NSTrackingArea(
+                rect: self.bounds,
+                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            )
 
-        if let trackingArea = trackingArea {
-            addTrackingArea(trackingArea)
+            if let trackingArea = self.trackingArea {
+                self.addTrackingArea(trackingArea)
+            }
         }
     }
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        setCommandKeyState(event.modifierFlags.contains(.command))
-        setHoverState(true)
+        coordinator?.isHovering = true
+        coordinator?.isCommandKeyPressed = event.modifierFlags.contains(.command)
+        updateWindowState()
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        setHoverState(false)
-        setCommandKeyState(event.modifierFlags.contains(.command))
+        coordinator?.isHovering = false
+        coordinator?.isCommandKeyPressed = event.modifierFlags.contains(.command)
+        updateWindowState()
     }
 
-    fileprivate func applyWindowMouseEventSetting(_ shouldIgnore: Bool) {
-        guard let window = window else { return }
-        let targetWindow = window
-        DispatchQueue.main.async {
-            guard targetWindow.ignoresMouseEvents != shouldIgnore else { return }
-            targetWindow.ignoresMouseEvents = shouldIgnore
-        }
+    private func updateWindowState() {
+        guard let coordinator = coordinator else { return }
+        coordinator.updateWindow(window, hovering: coordinator.isHovering, commandPressed: coordinator.isCommandKeyPressed)
     }
 }
 

@@ -23,9 +23,9 @@ class PurchaseManager: ObservableObject {
     private let productID = "com.leomanderico.coolclockpresence.premium"
     private var updateListenerTask: Task<Void, Error>?
 
-    // Premium status - check both purchase status and UserDefaults override for testing
+    // Premium status based on StoreKit purchases only
     var isPremium: Bool {
-        purchasedProductIDs.contains(productID) || UserDefaults.standard.bool(forKey: "isPremiumUnlocked")
+        purchasedProductIDs.contains(productID)
     }
 
     private init() {
