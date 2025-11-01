@@ -187,11 +187,9 @@ struct HoverDetector: NSViewRepresentable {
         view.onCommandKeyChange = { commandPressed in
             isCommandKeyPressed = commandPressed
         }
-        view.onShouldIgnoreMouseEvents = { shouldIgnore in
-            // Make window click-through only when hovering without command key (Premium only with disappear on hover enabled)
-            if let window = view.window, view.isPremium, view.disappearOnHover {
-                window.ignoresMouseEvents = shouldIgnore
-            }
+        view.onShouldIgnoreMouseEvents = { [weak view] shouldIgnore in
+            guard let view = view else { return }
+            view.applyWindowMouseEventSetting(shouldIgnore)
         }
         return view
     }
@@ -200,22 +198,37 @@ struct HoverDetector: NSViewRepresentable {
         if let hoverView = nsView as? HoverView {
             hoverView.isPremium = isPremium
             hoverView.disappearOnHover = disappearOnHover
+            hoverView.requestMouseEventRefresh()
         }
     }
 }
 
 class HoverView: NSView {
-// clase HoverView: NSView
     var onHoverChange: ((Bool) -> Void)?
     var onCommandKeyChange: ((Bool) -> Void)?
     var onShouldIgnoreMouseEvents: ((Bool) -> Void)?
-    var isPremium: Bool = false
-    var disappearOnHover: Bool = true
+    var isPremium: Bool = false {
+        didSet {
+            if isPremium != oldValue {
+                requestMouseEventRefresh()
+            }
+        }
+    }
+    var disappearOnHover: Bool = true {
+        didSet {
+            if disappearOnHover != oldValue {
+                requestMouseEventRefresh()
+            }
+        }
+    }
 
     private var trackingArea: NSTrackingArea?
     private var isHovering: Bool = false
     private var isCommandPressed: Bool = false
+    private var ignoringMouseEvents: Bool = false
+    private weak var lastAppliedWindow: NSWindow?
     private var eventMonitor: Any?
+    private var pendingRefresh = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -236,24 +249,74 @@ class HoverView: NSView {
     private func setupCommandKeyMonitor() {
         // Monitor for flag changes (modifier keys)
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            guard let self = self else { return event }
-
-            let commandPressed = event.modifierFlags.contains(.command)
-
-            if self.isCommandPressed != commandPressed {
-                self.isCommandPressed = commandPressed
-                self.onCommandKeyChange?(commandPressed)
-                self.updateMouseEventHandling()
-            }
-
+            self?.setCommandKeyState(event.modifierFlags.contains(.command))
             return event
+        }
+    }
+
+    private func setHoverState(_ hovering: Bool) {
+        if isHovering != hovering {
+            isHovering = hovering
+            scheduleHoverChange(hovering)
+        }
+        updateMouseEventHandling()
+    }
+
+    private func setCommandKeyState(_ commandPressed: Bool) {
+        if isCommandPressed != commandPressed {
+            isCommandPressed = commandPressed
+            scheduleCommandKeyChange(commandPressed)
+        }
+        updateMouseEventHandling()
+    }
+
+    private func scheduleHoverChange(_ hovering: Bool) {
+        guard onHoverChange != nil else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.onHoverChange?(hovering)
+        }
+    }
+
+    private func scheduleCommandKeyChange(_ commandPressed: Bool) {
+        guard onCommandKeyChange != nil else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.onCommandKeyChange?(commandPressed)
+        }
+    }
+
+    private func scheduleIgnoreMouseEvents(_ shouldIgnore: Bool) {
+        guard onShouldIgnoreMouseEvents != nil else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.onShouldIgnoreMouseEvents?(shouldIgnore)
         }
     }
 
     private func updateMouseEventHandling() {
         // Only ignore mouse events when hovering AND command key is NOT pressed (Premium only with disappear on hover enabled)
         let shouldIgnore = isHovering && !isCommandPressed && isPremium && disappearOnHover
-        onShouldIgnoreMouseEvents?(shouldIgnore)
+        let currentWindow = window
+        let windowChanged = currentWindow !== lastAppliedWindow
+
+        guard shouldIgnore != ignoringMouseEvents || windowChanged else { return }
+
+        ignoringMouseEvents = shouldIgnore
+        lastAppliedWindow = currentWindow
+        scheduleIgnoreMouseEvents(shouldIgnore)
+    }
+
+    func requestMouseEventRefresh() {
+        guard !pendingRefresh else { return }
+        pendingRefresh = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.pendingRefresh = false
+            self.updateMouseEventHandling()
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        requestMouseEventRefresh()
     }
 
     override func updateTrackingAreas() {
@@ -282,17 +345,24 @@ class HoverView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        isHovering = true
-        isCommandPressed = event.modifierFlags.contains(.command)
-        onHoverChange?(true)
-        onCommandKeyChange?(isCommandPressed)
-        updateMouseEventHandling()
+        super.mouseEntered(with: event)
+        setCommandKeyState(event.modifierFlags.contains(.command))
+        setHoverState(true)
     }
 
     override func mouseExited(with event: NSEvent) {
-        isHovering = false
-        onHoverChange?(false)
-        updateMouseEventHandling()
+        super.mouseExited(with: event)
+        setHoverState(false)
+        setCommandKeyState(event.modifierFlags.contains(.command))
+    }
+
+    fileprivate func applyWindowMouseEventSetting(_ shouldIgnore: Bool) {
+        guard let window = window else { return }
+        let targetWindow = window
+        DispatchQueue.main.async {
+            guard targetWindow.ignoresMouseEvents != shouldIgnore else { return }
+            targetWindow.ignoresMouseEvents = shouldIgnore
+        }
     }
 }
 
