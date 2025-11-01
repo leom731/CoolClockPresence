@@ -19,7 +19,8 @@ FEATURES
 • Gorgeous glassmorphic design with blur effects
 • Floats above all windows (optional)
 • 13+ customizable colors
-• Real-time battery status display
+• Real-time battery status display with low battery alert
+• Flashing percentage indicator when battery ≤ 20%
 • Works on all desktops and Spaces
 • Fully resizable with saved preferences
 • Auto-hide on hover (hold ⌘ to interact)

@@ -481,7 +481,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let contentView = ClockPresenceView()
         panel.contentView = NSHostingView(rootView: contentView)
 
-        // Restore saved position or center if first launch
+        // Restore saved position or position at top center if first launch
         let savedX = defaults.double(forKey: "windowX")
         let savedY = defaults.double(forKey: "windowY")
 
@@ -489,8 +489,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // Restore saved position
             panel.setFrameOrigin(NSPoint(x: savedX, y: savedY))
         } else {
-            // First launch - center the window
-            panel.center()
+            // First launch - position at top center, right below menu bar
+            if let screen = NSScreen.main {
+                let screenFrame = screen.visibleFrame
+                let menuBarHeight = screen.frame.height - screenFrame.maxY
+                let padding: CGFloat = 8 // Small gap below menu bar
+
+                let xPos = screenFrame.origin.x + (screenFrame.width - width) / 2
+                let yPos = screenFrame.maxY - height - padding
+
+                panel.setFrameOrigin(NSPoint(x: xPos, y: yPos))
+            } else {
+                // Fallback to center if screen info unavailable
+                panel.center()
+            }
         }
 
         panel.orderFrontRegardless()

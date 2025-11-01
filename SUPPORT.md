@@ -27,6 +27,9 @@ When you **hover** your mouse over the clock, it becomes transparent. Hold the *
 ### How do I show/hide the battery display?
 Right-click the clock and toggle **"Show Battery"** on or off.
 
+### What does the flashing battery percentage mean?
+When your battery level reaches **20% or below**, the percentage indicator will flash on and off every half second. This is a visual alert to remind you to charge your device soon.
+
 ### How do I make the clock stay on top of all windows?
 Right-click the clock and toggle **"Always on Top"** on or off.
 
@@ -72,7 +75,8 @@ We love hearing your ideas! Email us with suggestions for future versions.
 - Initial release
 - Glassmorphic floating clock design
 - 13+ customizable colors
-- Battery status display
+- Battery status display with low battery alert
+- Flashing battery percentage indicator (≤ 20%)
 - Auto-hide on hover
 - Always on Top mode
 - Interactive onboarding tutorial
