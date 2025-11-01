@@ -16,6 +16,7 @@ struct CoolClockPresenceApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var purchaseManager = PurchaseManager.shared
     @AppStorage("fontColorName") private var fontColorName = "cyan"
+    @AppStorage("showSeconds") private var showSeconds = true
     @AppStorage("showBattery") private var showBattery = true
     @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop = true
     @AppStorage("disappearOnHover") private var disappearOnHover = true
@@ -50,10 +51,14 @@ struct CoolClockPresenceApp: App {
                 Divider()
 
                 if purchaseManager.isPremium {
+                    Toggle("Show Seconds", isOn: $showSeconds)
                     Toggle("Show Battery", isOn: $showBattery)
                     Toggle("Always on Top", isOn: $isAlwaysOnTop)
                     Toggle("Disappear on Hover", isOn: $disappearOnHover)
                 } else {
+                    Button("Show Seconds 🔒 Premium") {
+                        NotificationCenter.default.post(name: NSNotification.Name("ShowPurchaseView"), object: nil)
+                    }
                     Button("Show Battery 🔒 Premium") {
                         NotificationCenter.default.post(name: NSNotification.Name("ShowPurchaseView"), object: nil)
                     }
@@ -228,6 +233,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Premium features
         if isPremium {
+            let showSecondsItem = NSMenuItem(title: "Show Seconds", action: #selector(toggleSeconds), keyEquivalent: "")
+            showSecondsItem.state = defaults.bool(forKey: "showSeconds") ? .on : .off
+            menu.addItem(showSecondsItem)
+
             let showBatteryItem = NSMenuItem(title: "Show Battery", action: #selector(toggleBattery), keyEquivalent: "")
             showBatteryItem.state = defaults.bool(forKey: "showBattery") ? .on : .off
             menu.addItem(showBatteryItem)
@@ -240,6 +249,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             disappearOnHoverItem.state = defaults.bool(forKey: "disappearOnHover") ? .on : .off
             menu.addItem(disappearOnHoverItem)
         } else {
+            menu.addItem(NSMenuItem(title: "Show Seconds 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Show Battery 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Always on Top 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Disappear on Hover 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
@@ -282,6 +292,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defaults.set(colorName, forKey: "fontColorName")
             updateMenuBarMenu()
         }
+    }
+
+    @objc private func toggleSeconds() {
+        let current = defaults.bool(forKey: "showSeconds")
+        defaults.set(!current, forKey: "showSeconds")
+        updateMenuBarMenu()
     }
 
     @objc private func toggleBattery() {
@@ -456,6 +472,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.contentMinSize = CGSize(width: 168, height: 60)
         panel.contentMaxSize = CGSize(width: 616, height: 200)
 
+        // Hide the standard window buttons BEFORE setting the NSHostingView to avoid NSRemoteView warnings
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
+
         // Set SwiftUI content
         let contentView = ClockPresenceView()
         panel.contentView = NSHostingView(rootView: contentView)
@@ -520,11 +541,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             name: NSNotification.Name("ShowHelpWindow"),
             object: nil
         )
-
-        // Hide the standard window buttons completely
-        panel.standardWindowButton(.closeButton)?.isHidden = true
-        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        panel.standardWindowButton(.zoomButton)?.isHidden = true
     }
 
     @objc private func showOnboardingAgain() {

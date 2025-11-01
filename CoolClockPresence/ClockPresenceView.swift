@@ -18,6 +18,7 @@ import IOKit.ps
 struct ClockPresenceView: View {
     @AppStorage("fontColorName") private var fontColorName: String = "cyan"
     @AppStorage("showBattery") private var showBattery: Bool = true
+    @AppStorage("showSeconds") private var showSeconds: Bool = true
     @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
     @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
 
@@ -71,7 +72,11 @@ struct ClockPresenceView: View {
 
                 VStack(spacing: 4 * currentScale) {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(context.date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute().second()))
+                        let timeFormat = showSeconds && purchaseManager.isPremium
+                            ? context.date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute().second())
+                            : context.date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute())
+
+                        Text(timeFormat)
                             .font(clockFont(for: currentScale))
                             .foregroundStyle(fontColor.opacity(0.92))
                             .minimumScaleFactor(0.5)
@@ -80,10 +85,12 @@ struct ClockPresenceView: View {
 
                     // Battery Status (Premium Only)
                     if showBattery && purchaseManager.isPremium {
-                        HStack(spacing: 4 * currentScale) {
-                            Image(systemName: batteryMonitor.batteryIcon)
-                                .font(.system(size: 19 * currentScale, weight: .medium))
-                                .foregroundStyle(batteryMonitor.batteryColor.opacity(0.92))
+                        HStack(spacing: 6 * currentScale) {
+                            BatteryIndicatorView(
+                                level: batteryMonitor.batteryLevel,
+                                isCharging: batteryMonitor.isCharging,
+                                scale: currentScale
+                            )
 
                             Text("\(batteryMonitor.batteryLevel)%")
                                 .font(batteryFont(for: currentScale))
@@ -122,10 +129,14 @@ struct ClockPresenceView: View {
 
                 // Premium features
                 if purchaseManager.isPremium {
+                    Toggle("Show Seconds", isOn: $showSeconds)
                     Toggle("Show Battery", isOn: $showBattery)
                     Toggle("Always on Top", isOn: $isAlwaysOnTop)
                     Toggle("Disappear on Hover", isOn: $disappearOnHover)
                 } else {
+                    Button("Show Seconds 🔒 Premium") {
+                        showingPurchaseSheet = true
+                    }
                     Button("Show Battery 🔒 Premium") {
                         showingPurchaseSheet = true
                     }
@@ -366,6 +377,58 @@ class HoverView: NSView {
     }
 }
 
+// MARK: - Battery Indicator View
+
+struct BatteryIndicatorView: View {
+    let level: Int
+    let isCharging: Bool
+    let scale: CGFloat
+
+    private var batteryColor: Color {
+        if isCharging {
+            return .green
+        }
+
+        if level <= 20 {
+            return .red
+        } else if level <= 50 {
+            return .orange
+        } else {
+            return .white
+        }
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            // Battery body outline
+            RoundedRectangle(cornerRadius: 2 * scale)
+                .strokeBorder(batteryColor.opacity(0.92), lineWidth: 1.5 * scale)
+                .frame(width: 22 * scale, height: 11 * scale)
+
+            // Battery fill
+            RoundedRectangle(cornerRadius: 1.5 * scale)
+                .fill(batteryColor.opacity(0.92))
+                .frame(width: max(0, (20 * scale) * CGFloat(level) / 100), height: 9 * scale)
+                .padding(.leading, 1 * scale)
+
+            // Battery terminal (nub on right side)
+            RoundedRectangle(cornerRadius: 1 * scale)
+                .fill(batteryColor.opacity(0.92))
+                .frame(width: 1.5 * scale, height: 6 * scale)
+                .offset(x: 22.5 * scale)
+
+            // Charging bolt icon overlay
+            if isCharging {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 7 * scale, weight: .bold))
+                    .foregroundStyle(.black.opacity(0.8))
+                    .offset(x: 7.5 * scale)
+            }
+        }
+        .frame(width: 24 * scale, height: 11 * scale)
+    }
+}
+
 // MARK: - Battery Monitor
 
 class BatteryMonitor: ObservableObject {
@@ -424,41 +487,6 @@ class BatteryMonitor: ObservableObject {
                     self.isPluggedIn = (powerSource == kIOPSACPowerValue)
                 }
             }
-        }
-    }
-
-    var batteryIcon: String {
-        if isCharging {
-            return "battery.100percent.bolt"
-        }
-
-        switch batteryLevel {
-        case 0...10:
-            return "battery.0percent"
-        case 11...25:
-            return "battery.25percent"
-        case 26...50:
-            return "battery.50percent"
-        case 51...75:
-            return "battery.75percent"
-        default:
-            return "battery.100percent"
-        }
-    }
-
-    var batteryColor: Color {
-        if isCharging {
-            return .green
-        }
-
-        if batteryLevel <= 20 {
-            return .red
-        } else if batteryLevel <= 50 {
-            return Color(white: 0.8)
-       } else if batteryLevel <= 70 {
-            return Color(white: 0.8)
-        } else {
-            return Color(white: 0.8)
         }
     }
 
