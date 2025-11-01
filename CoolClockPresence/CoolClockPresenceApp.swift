@@ -492,7 +492,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // First launch - position at top center, right below menu bar
             if let screen = NSScreen.main {
                 let screenFrame = screen.visibleFrame
-                let menuBarHeight = screen.frame.height - screenFrame.maxY
                 let padding: CGFloat = 8 // Small gap below menu bar
 
                 let xPos = screenFrame.origin.x + (screenFrame.width - width) / 2

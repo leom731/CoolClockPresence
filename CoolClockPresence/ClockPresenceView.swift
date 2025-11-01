@@ -96,7 +96,7 @@ struct ClockPresenceView: View {
                             Text("\(batteryMonitor.batteryLevel)%")
                                 .font(batteryFont(for: currentScale))
                                 .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
-                                .opacity(batteryMonitor.batteryLevel <= 20 ? (showBatteryPercentage ? 1 : 0) : 1)
+                                .opacity(batteryMonitor.batteryLevel <= 25 ? (showBatteryPercentage ? 1 : 0) : 1)
                         }
                     }
                 }
@@ -180,7 +180,7 @@ struct ClockPresenceView: View {
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
         .background(HoverDetector(isHovering: $isHovering, isCommandKeyPressed: $isCommandKeyPressed, isPremium: purchaseManager.isPremium, disappearOnHover: disappearOnHover))
         .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
-            if batteryMonitor.batteryLevel <= 20 {
+            if batteryMonitor.batteryLevel <= 25 {
                 showBatteryPercentage.toggle()
             } else {
                 showBatteryPercentage = true
@@ -395,7 +395,7 @@ struct BatteryIndicatorView: View {
 
     private var batteryColor: Color {
         if isCharging {
-            return .green
+            return .white
         }
 
         if level <= 20 {
