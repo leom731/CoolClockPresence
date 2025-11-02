@@ -96,7 +96,8 @@ struct ClockPresenceView: View {
                             Text("\(batteryMonitor.batteryLevel)%")
                                 .font(batteryFont(for: currentScale))
                                 .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
-                                .opacity(batteryMonitor.batteryLevel <= 25 ? (showBatteryPercentage ? 1 : 0) : 1)
+                                // Battery flash theshold
+                                .opacity(batteryMonitor.batteryLevel <= 30 ? (showBatteryPercentage ? 1 : 0) : 1)
                         }
                     }
                 }
@@ -189,7 +190,8 @@ struct ClockPresenceView: View {
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
         .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
-            if batteryMonitor.batteryLevel <= 25 {
+            // Battery flash theshold
+            if batteryMonitor.batteryLevel <= 30 {
                 showBatteryPercentage.toggle()
             } else {
                 showBatteryPercentage = true
