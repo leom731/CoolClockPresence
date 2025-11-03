@@ -21,6 +21,8 @@ struct ClockPresenceView: View {
     @AppStorage("showSeconds") private var showSeconds: Bool = true
     @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
     @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
+    @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
+    @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
 
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
@@ -65,6 +67,18 @@ struct ClockPresenceView: View {
         .system(size: 19 * scale, weight: .medium, design: .rounded)
     }
 
+    private func formattedTime(from date: Date) -> String {
+        var formatStyle = Date.FormatStyle()
+            .hour(use24HourFormat ? .twoDigits(amPM: .omitted) : .defaultDigits(amPM: .abbreviated))
+            .minute()
+
+        if showSeconds && purchaseManager.isPremium {
+            formatStyle = formatStyle.second()
+        }
+
+        return date.formatted(formatStyle)
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let currentScale = scale(for: geometry.size)
@@ -73,11 +87,7 @@ struct ClockPresenceView: View {
 
                 VStack(spacing: 4 * currentScale) {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        let timeFormat = showSeconds && purchaseManager.isPremium
-                            ? context.date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute().second())
-                            : context.date.formatted(.dateTime.hour(.defaultDigits(amPM: .abbreviated)).minute())
-
-                        Text(timeFormat)
+                        Text(formattedTime(from: context.date))
                             .font(clockFont(for: currentScale))
                             .foregroundStyle(fontColor.opacity(0.92))
                             .minimumScaleFactor(0.5)
@@ -97,7 +107,7 @@ struct ClockPresenceView: View {
                                 .font(batteryFont(for: currentScale))
                                 .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
                                 // Battery flash theshold
-                                .opacity(batteryMonitor.batteryLevel <= 30 ? (showBatteryPercentage ? 1 : 0) : 1)
+                                .opacity(batteryMonitor.batteryLevel <= 25 ? (showBatteryPercentage ? 1 : 0) : 1)
                         }
                     }
                 }
@@ -108,24 +118,23 @@ struct ClockPresenceView: View {
             .contextMenu {
                 Menu("Font Color") {
                     // Free colors
-                    Button("White") { fontColorName = "white" }
-                    Button("Cyan") { fontColorName = "cyan" }
-                    Button("Default") { fontColorName = "primary" }
+                    fontColorButton(title: "White", colorName: "white")
+                    fontColorButton(title: "Cyan", colorName: "cyan")
 
                     // Premium colors
                     if purchaseManager.isPremium {
                         Divider()
-                        Button("Black") { fontColorName = "black" }
-                        Button("Red") { fontColorName = "red" }
-                        Button("Orange") { fontColorName = "orange" }
-                        Button("Yellow") { fontColorName = "yellow" }
-                        Button("Green") { fontColorName = "green" }
-                        Button("Blue") { fontColorName = "blue" }
-                        Button("Purple") { fontColorName = "purple" }
-                        Button("Pink") { fontColorName = "pink" }
-                        Button("Mint") { fontColorName = "mint" }
-                        Button("Teal") { fontColorName = "teal" }
-                        Button("Indigo") { fontColorName = "indigo" }
+                        fontColorButton(title: "Black", colorName: "black")
+                        fontColorButton(title: "Red", colorName: "red")
+                        fontColorButton(title: "Orange", colorName: "orange")
+                        fontColorButton(title: "Yellow", colorName: "yellow")
+                        fontColorButton(title: "Green", colorName: "green")
+                        fontColorButton(title: "Blue", colorName: "blue")
+                        fontColorButton(title: "Purple", colorName: "purple")
+                        fontColorButton(title: "Pink", colorName: "pink")
+                        fontColorButton(title: "Mint", colorName: "mint")
+                        fontColorButton(title: "Teal", colorName: "teal")
+                        fontColorButton(title: "Indigo", colorName: "indigo")
                     }
                 }
                 Divider()
@@ -186,15 +195,29 @@ struct ClockPresenceView: View {
         )
         .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
         .ignoresSafeArea()
-        .opacity((isHovering && !isCommandKeyPressed && purchaseManager.isPremium && disappearOnHover) ? 0 : 1)
+        .opacity((isHovering && !isCommandKeyPressed && purchaseManager.isPremium && disappearOnHover) ? 0 : clockOpacity)
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
+        .animation(.easeInOut(duration: 0.2), value: clockOpacity)
         .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
             // Battery flash theshold
-            if batteryMonitor.batteryLevel <= 30 {
+            if batteryMonitor.batteryLevel <= 25 {
                 showBatteryPercentage.toggle()
             } else {
                 showBatteryPercentage = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fontColorButton(title: String, colorName: String) -> some View {
+        Button {
+            fontColorName = colorName
+        } label: {
+            if fontColorName == colorName {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
             }
         }
     }
@@ -360,8 +383,8 @@ struct BatteryIndicatorView: View {
             return .white
         }
 
-        if level <= 20 {
-            return .red
+        if level <= 25 {
+            return .orange
         } else if level <= 50 {
             return .white
         } else {

@@ -14,83 +14,12 @@ import AppKit
 @main
 struct CoolClockPresenceApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var purchaseManager = PurchaseManager.shared
-    @AppStorage("fontColorName") private var fontColorName = "cyan"
-    @AppStorage("showSeconds") private var showSeconds = true
-    @AppStorage("showBattery") private var showBattery = true
-    @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop = true
-    @AppStorage("disappearOnHover") private var disappearOnHover = true
 
     var body: some Scene {
         Settings {
-            EmptyView()
+            SettingsView()
         }
         .commands {
-            CommandMenu("Clock Controls") {
-                Menu("Font Color") {
-                    fontColorCommandButton(title: "White", colorName: "white")
-                    fontColorCommandButton(title: "Cyan", colorName: "cyan")
-                    fontColorCommandButton(title: "Default", colorName: "primary")
-
-                    if purchaseManager.isPremium {
-                        Divider()
-                        fontColorCommandButton(title: "Black", colorName: "black")
-                        fontColorCommandButton(title: "Red", colorName: "red")
-                        fontColorCommandButton(title: "Orange", colorName: "orange")
-                        fontColorCommandButton(title: "Yellow", colorName: "yellow")
-                        fontColorCommandButton(title: "Green", colorName: "green")
-                        fontColorCommandButton(title: "Blue", colorName: "blue")
-                        fontColorCommandButton(title: "Purple", colorName: "purple")
-                        fontColorCommandButton(title: "Pink", colorName: "pink")
-                        fontColorCommandButton(title: "Mint", colorName: "mint")
-                        fontColorCommandButton(title: "Teal", colorName: "teal")
-                        fontColorCommandButton(title: "Indigo", colorName: "indigo")
-                    }
-                }
-
-                Divider()
-
-                if purchaseManager.isPremium {
-                    Toggle("Show Seconds", isOn: $showSeconds)
-                    Toggle("Show Battery", isOn: $showBattery)
-                    Toggle("Always on Top", isOn: $isAlwaysOnTop)
-                    Toggle("Disappear on Hover", isOn: $disappearOnHover)
-                } else {
-                    Button("Show Seconds 🔒 Premium") {
-                        NotificationCenter.default.post(name: NSNotification.Name("ShowPurchaseView"), object: nil)
-                    }
-                    Button("Show Battery 🔒 Premium") {
-                        NotificationCenter.default.post(name: NSNotification.Name("ShowPurchaseView"), object: nil)
-                    }
-                    Button("Always on Top 🔒 Premium") {
-                        NotificationCenter.default.post(name: NSNotification.Name("ShowPurchaseView"), object: nil)
-                    }
-                    Button("Disappear on Hover 🔒 Premium") {
-                        NotificationCenter.default.post(name: NSNotification.Name("ShowPurchaseView"), object: nil)
-                    }
-                }
-
-                Divider()
-
-                if !purchaseManager.isPremium {
-                    Button("⭐️ Upgrade to Premium ($0.99)") {
-                        NotificationCenter.default.post(name: NSNotification.Name("ShowPurchaseView"), object: nil)
-                    }
-                    Divider()
-                }
-
-                Button("Show Onboarding Again") {
-                    NotificationCenter.default.post(name: NSNotification.Name("ShowOnboardingAgain"), object: nil)
-                }
-
-                Divider()
-
-                Button("Quit CoolClockPresence") {
-                    NSApplication.shared.terminate(nil)
-                }
-                .keyboardShortcut("q", modifiers: .command)
-            }
-
             CommandGroup(replacing: .newItem) { }
 
             // Add standard App Menu with Quit option
@@ -113,22 +42,6 @@ struct CoolClockPresenceApp: App {
                     NotificationCenter.default.post(name: NSNotification.Name("ShowHelpWindow"), object: nil)
                 }
                 .keyboardShortcut("?", modifiers: .command)
-            }
-        }
-    }
-}
-
-private extension CoolClockPresenceApp {
-    @ViewBuilder
-    func fontColorCommandButton(title: String, colorName: String) -> some View {
-        Button {
-            fontColorName = colorName
-        } label: {
-            HStack {
-                Text(title)
-                Spacer()
-                Image(systemName: "checkmark")
-                    .opacity(fontColorName == colorName ? 1 : 0)
             }
         }
     }
@@ -208,7 +121,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Free colors
         fontColorMenu.addItem(createFontColorMenuItem(title: "White", colorName: "white"))
         fontColorMenu.addItem(createFontColorMenuItem(title: "Cyan", colorName: "cyan"))
-        fontColorMenu.addItem(createFontColorMenuItem(title: "Default", colorName: "primary"))
 
         // Premium colors
         if isPremium {
@@ -446,7 +358,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let height = savedHeight > 0 ? savedHeight : 100
 
         // Create a floating panel with saved size - restore original working config with title bar buttons
-        let panel = NSPanel(
+        let panel = ActivatingPanel(
             contentRect: NSRect(x: 0, y: 0, width: width, height: height),
             styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
@@ -465,7 +377,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.titleVisibility = .hidden  // Keep hidden as in original
         panel.titlebarAppearsTransparent = true
         panel.hidesOnDeactivate = false
-        panel.becomesKeyOnlyIfNeeded = true  // Restore original setting
+        panel.becomesKeyOnlyIfNeeded = true  // Non-activating panel keeps fullscreen compatibility
         panel.isRestorable = false  // Disable window restoration to fix className error
 
         // Set size constraints
@@ -505,6 +417,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         panel.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
         panel.delegate = self
 
         self.window = panel
@@ -627,6 +540,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // App can still be accessed from menu bar and can be quit from there
         sender.orderOut(nil)
         return false
+    }
+}
+
+private final class ActivatingPanel: NSPanel {
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            NSApp.activate(ignoringOtherApps: true)
+        default:
+            break
+        }
+        super.sendEvent(event)
+    }
+
+    override var canBecomeKey: Bool {
+        true
     }
 }
 #endif
