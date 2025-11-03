@@ -37,7 +37,7 @@ struct PurchaseView: View {
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
 
-                Text("Unlock all features for just $0.99")
+                Text("Unlock all features for just $1.99")
                     .font(.system(size: 15))
                     .foregroundStyle(.secondary)
                     .padding(.bottom, 8)
@@ -102,7 +102,7 @@ struct PurchaseView: View {
                     } else if let product = purchaseManager.products.first {
                         Text("Purchase Premium - \(product.displayPrice)")
                     } else {
-                        Text("Purchase Premium - $0.99")
+                        Text("Purchase Premium - $1.99")
                     }
                 }
                 .buttonStyle(PrimaryPurchaseButtonStyle())

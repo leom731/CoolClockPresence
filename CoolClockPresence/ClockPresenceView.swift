@@ -164,7 +164,7 @@ struct ClockPresenceView: View {
 
                 // Upgrade option
                 if !purchaseManager.isPremium {
-                    Button("⭐️ Upgrade to Premium ($0.99)") {
+                    Button("⭐️ Upgrade to Premium ($1.99)") {
                         showingPurchaseSheet = true
                     }
                     Divider()

@@ -40,7 +40,7 @@ struct OnboardingView: View {
             icon: "star.circle.fill",
             iconColor: .yellow,
             title: "Upgrade to Premium",
-            description: "Unlock powerful features for just $0.99",
+            description: "Unlock powerful features for just $1.99",
             features: [
                 "Battery Monitor - Track battery level and charging",
                 "All Font Colors - 13+ beautiful color options",

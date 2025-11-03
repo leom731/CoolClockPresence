@@ -171,7 +171,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Upgrade option
         if !isPremium {
-            menu.addItem(NSMenuItem(title: "⭐️ Upgrade to Premium ($0.99)", action: #selector(showPurchaseView), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "⭐️ Upgrade to Premium ($1.99)", action: #selector(showPurchaseView), keyEquivalent: ""))
             menu.addItem(NSMenuItem.separator())
         }
 
@@ -556,6 +556,45 @@ private final class ActivatingPanel: NSPanel {
 
     override var canBecomeKey: Bool {
         true
+    }
+
+    override var acceptsMouseMovedEvents: Bool {
+        get { true }
+        set { }
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        // Trigger cursor update based on mouse position
+        updateCursorForMouseLocation(event.locationInWindow)
+    }
+
+    private func updateCursorForMouseLocation(_ location: NSPoint) {
+        let edgeThickness: CGFloat = 8.0
+
+        // Get window bounds in window coordinates
+        let windowBounds = NSRect(origin: .zero, size: frame.size)
+
+        // Check if mouse is near edges
+        let nearTop = location.y >= windowBounds.height - edgeThickness
+        let nearBottom = location.y <= edgeThickness
+        let nearLeft = location.x <= edgeThickness
+        let nearRight = location.x >= windowBounds.width - edgeThickness
+
+        // Set appropriate cursor based on position
+        // Use the correct system cursors available in NSCursor
+        if (nearTop && nearLeft) || (nearBottom && nearRight) {
+            // Diagonal resize cursor (northwest-southeast)
+            NSCursor.arrow.set() // Fallback - system will handle resize
+        } else if (nearTop && nearRight) || (nearBottom && nearLeft) {
+            // Diagonal resize cursor (northeast-southwest)
+            NSCursor.arrow.set() // Fallback - system will handle resize
+        } else if nearTop || nearBottom {
+            NSCursor.resizeUpDown.set()
+        } else if nearLeft || nearRight {
+            NSCursor.resizeLeftRight.set()
+        }
+        // If not near edges, let the default cursor be used
     }
 }
 #endif

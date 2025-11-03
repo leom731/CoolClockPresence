@@ -154,7 +154,7 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                         .padding(.horizontal)
 
-                    Button("⭐️ Upgrade to Premium ($0.99)") {
+                    Button("⭐️ Upgrade to Premium ($1.99)") {
                         showingPurchaseSheet = true
                     }
                     .buttonStyle(.borderedProminent)

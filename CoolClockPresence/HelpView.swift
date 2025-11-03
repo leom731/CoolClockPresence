@@ -52,7 +52,7 @@ struct HelpView: View {
             title: "Premium Features",
             items: [
                 HelpItem(question: "What does Premium include?", answer: "Premium unlocks: Battery Monitor, 13+ font colors, Always on Top, Hover Transparency, and Position Memory."),
-                HelpItem(question: "How much does Premium cost?", answer: "Premium is a one-time purchase of $0.99. No subscriptions!"),
+                HelpItem(question: "How much does Premium cost?", answer: "Premium is a one-time purchase of $1.99. No subscriptions!"),
                 HelpItem(question: "How do I upgrade to Premium?", answer: "Click the menu bar icon and select 'Upgrade to Premium', or click the lock icon next to any premium feature.")
             ]
         ),
