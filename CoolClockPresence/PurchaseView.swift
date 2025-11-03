@@ -45,10 +45,12 @@ struct PurchaseView: View {
 
             // Features list
             VStack(alignment: .leading, spacing: 16) {
-                FeatureRow(icon: "battery.100percent.bolt", color: .green, title: "Battery Monitor", description: "Track battery level and charging status")
-                FeatureRow(icon: "paintpalette.fill", color: .pink, title: "All Font Colors", description: "Choose from 13+ beautiful color options")
-                FeatureRow(icon: "pin.fill", color: .blue, title: "Always on Top", description: "Keep clock visible over all windows")
-                FeatureRow(icon: "eye.slash.fill", color: .purple, title: "Hover Transparency", description: "Auto-fade on hover for unobstructed view")
+                FeatureRow(icon: "battery.100percent.bolt", color: .green, title: "Battery Monitor", description: "Track level and charging status")
+                FeatureRow(icon: "timer", color: .cyan, title: "Advanced Time Controls", description: "Show seconds or switch to 24-hour format")
+                FeatureRow(icon: "paintpalette.fill", color: .pink, title: "All Font Colors", description: "Unlock 13 vibrant styles")
+                FeatureRow(icon: "slider.horizontal.3", color: .purple, title: "Clock Opacity", description: "Dial in the perfect transparency")
+                FeatureRow(icon: "pin.fill", color: .blue, title: "Always on Top", description: "Keep the clock above every window")
+                FeatureRow(icon: "eye.slash.fill", color: .indigo, title: "Hover Transparency", description: "Auto-fade on hover for a clear view")
                 FeatureRow(icon: "memorychip.fill", color: .orange, title: "Position Memory", description: "Remember window location and size")
             }
             .padding(.horizontal, 40)

@@ -42,11 +42,13 @@ struct OnboardingView: View {
             title: "Upgrade to Premium",
             description: "Unlock powerful features for just $1.99",
             features: [
-                "Battery Monitor - Track battery level and charging",
-                "All Font Colors - 13+ beautiful color options",
+                "Battery Monitor - Track level and charging status",
+                "Advanced Time Controls - Show seconds or use 24-hour format",
+                "All Font Colors - Unlock 13 vibrant styles",
+                "Clock Opacity - Fine tune transparency",
                 "Always on Top - Keep clock over all windows",
                 "Hover Transparency - Auto-fade for clear view",
-                "Position Memory - Remember window location"
+                "Position Memory - Remember window location and size"
             ],
             isPremiumPage: true
         ),
