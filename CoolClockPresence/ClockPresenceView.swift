@@ -501,31 +501,36 @@ class BatteryMonitor: ObservableObject {
 
 private struct GlassBackdrop: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 28, style: .continuous)
-            .fill(.ultraThinMaterial.opacity(0.3))
-            .background(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(
-                        LinearGradient(colors: [
-                            Color.cyan.opacity(0.08),
-                            Color.purple.opacity(0.10),
-                            Color.blue.opacity(0.08)
-                        ], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .blur(radius: 30)
-                    .opacity(0.4)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(colors: [
-                            Color.white.opacity(0.25),
-                            Color.white.opacity(0.08)
-                        ], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: 1
-                    )
-            )
-            .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
+        ZStack {
+            // Outer border layer for smooth edge
+            RoundedRectangle(cornerRadius: 40, style: .continuous)
+                .fill(
+                    LinearGradient(colors: [
+                        Color.white.opacity(0.25),
+                        Color.white.opacity(0.08)
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                .padding(0.5)
+
+            // Inner glass layer
+            RoundedRectangle(cornerRadius: 39, style: .continuous)
+                .fill(.ultraThinMaterial.opacity(0.3))
+                .padding(1.5)
+
+            // Background gradient layer
+            RoundedRectangle(cornerRadius: 39, style: .continuous)
+                .fill(
+                    LinearGradient(colors: [
+                        Color.cyan.opacity(0.08),
+                        Color.purple.opacity(0.10),
+                        Color.blue.opacity(0.08)
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                .blur(radius: 30)
+                .opacity(0.4)
+                .padding(1.5)
+        }
+        .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
     }
 }
 

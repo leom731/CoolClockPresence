@@ -389,9 +389,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
 
+        // Set rounded corners for the window to match content
+        if let contentView = panel.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.cornerRadius = 40
+            contentView.layer?.masksToBounds = true
+        }
+
         // Set SwiftUI content
         let contentView = ClockPresenceView()
-        panel.contentView = NSHostingView(rootView: contentView)
+        let hostingView = NSHostingView(rootView: contentView)
+        panel.contentView = hostingView
+
+        // Apply corner radius to hosting view
+        hostingView.wantsLayer = true
+        hostingView.layer?.cornerRadius = 40
+        hostingView.layer?.cornerCurve = .continuous
+        hostingView.layer?.masksToBounds = true
 
         // Restore saved position or position at top center if first launch
         let savedX = defaults.double(forKey: "windowX")
