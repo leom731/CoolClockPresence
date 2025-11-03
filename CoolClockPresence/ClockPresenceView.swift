@@ -502,35 +502,35 @@ class BatteryMonitor: ObservableObject {
 private struct GlassBackdrop: View {
     var body: some View {
         ZStack {
-            // Outer border layer for smooth edge
+            // Outer border layer for smooth edge - made nearly transparent
             RoundedRectangle(cornerRadius: 40, style: .continuous)
                 .fill(
                     LinearGradient(colors: [
-                        Color.white.opacity(0.25),
-                        Color.white.opacity(0.08)
+                        Color.white.opacity(0.02),
+                        Color.white.opacity(0.01)
                     ], startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
                 .padding(0.5)
 
-            // Inner glass layer
+            // Inner glass layer - made very transparent
             RoundedRectangle(cornerRadius: 39, style: .continuous)
-                .fill(.ultraThinMaterial.opacity(0.3))
+                .fill(.ultraThinMaterial.opacity(0.05))
                 .padding(1.5)
 
-            // Background gradient layer
+            // Background gradient layer - made very subtle
             RoundedRectangle(cornerRadius: 39, style: .continuous)
                 .fill(
                     LinearGradient(colors: [
-                        Color.cyan.opacity(0.08),
-                        Color.purple.opacity(0.10),
-                        Color.blue.opacity(0.08)
+                        Color.cyan.opacity(0.02),
+                        Color.purple.opacity(0.03),
+                        Color.blue.opacity(0.02)
                     ], startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
                 .blur(radius: 30)
-                .opacity(0.4)
+                .opacity(0.1)
                 .padding(1.5)
         }
-        .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
+        .shadow(color: Color.black.opacity(0.05), radius: 20, x: 0, y: 10)
     }
 }
 
