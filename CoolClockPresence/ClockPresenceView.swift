@@ -531,22 +531,22 @@ private struct GlassBackdrop: View {
         }
     }
 
-    // New Liquid Glass effect - more vibrant and visible
+    // New Liquid Glass effect - more vibrant and visible with blur transparency
     private var liquidGlassStyle: some View {
         ZStack {
-            // Base material layer with better visibility
+            // Base material layer with blur and transparency
             RoundedRectangle(cornerRadius: 40, style: .continuous)
-                .fill(.regularMaterial)
-                .opacity(0.9)
+                .fill(.ultraThinMaterial)
+                .opacity(0.5)
 
-            // Vibrant gradient overlay
+            // Vibrant gradient overlay - slightly more opaque for visibility
             RoundedRectangle(cornerRadius: 40, style: .continuous)
                 .fill(
                     LinearGradient(colors: [
-                        Color.cyan.opacity(0.15),
-                        Color.purple.opacity(0.12),
-                        Color.blue.opacity(0.15),
-                        Color.pink.opacity(0.1)
+                        Color.cyan.opacity(0.12),
+                        Color.purple.opacity(0.10),
+                        Color.blue.opacity(0.12),
+                        Color.pink.opacity(0.08)
                     ], startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
                 .blur(radius: 20)
@@ -555,8 +555,8 @@ private struct GlassBackdrop: View {
             RoundedRectangle(cornerRadius: 40, style: .continuous)
                 .strokeBorder(
                     LinearGradient(colors: [
-                        Color.white.opacity(0.3),
-                        Color.white.opacity(0.1),
+                        Color.white.opacity(0.4),
+                        Color.white.opacity(0.15),
                         Color.clear
                     ], startPoint: .topLeading, endPoint: .bottomTrailing),
                     lineWidth: 1.5
@@ -566,7 +566,7 @@ private struct GlassBackdrop: View {
             RoundedRectangle(cornerRadius: 38, style: .continuous)
                 .fill(
                     RadialGradient(colors: [
-                        Color.white.opacity(0.08),
+                        Color.white.opacity(0.1),
                         Color.clear
                     ], center: .topLeading, startRadius: 0, endRadius: 300)
                 )
