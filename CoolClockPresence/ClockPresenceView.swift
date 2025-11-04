@@ -377,15 +377,15 @@ struct BatteryIndicatorView: View {
 
     private var batteryColor: Color {
         if isCharging {
-            return .white
+            return Color(white: 0.7)
         }
 
         if level <= 25 {
             return .orange
         } else if level <= 50 {
-            return .white
+            return Color(white: 0.7)
         } else {
-            return .white
+            return Color(white: 0.7)
         }
     }
 
