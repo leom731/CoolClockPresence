@@ -125,6 +125,7 @@ class PromoCodeManager {
     func resetAllPromoCodes() {
         defaults.removeObject(forKey: usedCodesKey)
         defaults.set(false, forKey: "unlockedViaPromoCode")
+        defaults.set(false, forKey: "isPremiumUnlocked")
     }
 
     func listUsedCodes() -> [String: [String]] {

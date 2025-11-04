@@ -47,7 +47,7 @@ struct CoolClockPresenceApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
     var window: NSPanel?
     var onboardingWindow: NSWindow?
     var helpWindow: NSWindow?
@@ -96,6 +96,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             button.image?.isTemplate = true
         }
 
+        // Create initial menu
+        let menu = NSMenu()
+        menu.delegate = self
+        statusItem?.menu = menu
+
         // Build menu dynamically
         updateMenuBarMenu()
 
@@ -108,8 +113,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
     }
 
+    // MARK: - NSMenuDelegate
+
+    func menuWillOpen(_ menu: NSMenu) {
+        // Rebuild menu when it's about to open, so we can check modifier flags
+        updateMenuBarMenu()
+    }
+
     @objc private func updateMenuBarMenu() {
-        let menu = NSMenu()
+        guard let menu = statusItem?.menu else { return }
+        menu.removeAllItems()
+
         let isPremium = defaults.bool(forKey: "isPremiumUnlocked")
 
         // Show/Hide Clock Window
@@ -191,10 +205,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelpWindow), keyEquivalent: "?"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Show Onboarding Again", action: #selector(showOnboardingAgain), keyEquivalent: ""))
+
+        // Hidden debug option (only visible when Option key is held)
+        if NSEvent.modifierFlags.contains(.option) {
+            menu.addItem(NSMenuItem.separator())
+            let debugItem = NSMenuItem(title: "🐛 Reset Promo Codes (Debug)", action: #selector(resetPromoCodesDebug), keyEquivalent: "")
+            menu.addItem(debugItem)
+        }
+
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit CoolClockPresence", action: #selector(quitApp), keyEquivalent: "q"))
-
-        statusItem?.menu = menu
     }
 
     private func createFontColorMenuItem(title: String, colorName: String) -> NSMenuItem {
@@ -302,6 +322,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
+    }
+
+    @objc private func resetPromoCodesDebug() {
+        // Reset all promo code data
+        PromoCodeManager.shared.resetAllPromoCodes()
+        defaults.set(false, forKey: "isPremiumUnlocked")
+
+        // Show confirmation alert
+        let alert = NSAlert()
+        alert.messageText = "Debug: Promo Codes Reset"
+        alert.informativeText = "All promo codes have been reset. Premium status removed. Restart the app to see the purchase screen."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+
+        // Update menu to reflect changes
+        updateMenuBarMenu()
     }
 
     @objc private func showHelpWindow() {
