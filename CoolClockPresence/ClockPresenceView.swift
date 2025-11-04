@@ -68,8 +68,22 @@ struct ClockPresenceView: View {
     }
 
     private func formattedTime(from date: Date) -> String {
+        if use24HourFormat {
+            let calendar = Calendar.autoupdatingCurrent
+            let components = calendar.dateComponents([.hour, .minute, .second], from: date)
+            let hour = components.hour ?? 0
+            let minute = components.minute ?? 0
+
+            if showSeconds && purchaseManager.isPremium {
+                let second = components.second ?? 0
+                return String(format: "%02d:%02d:%02d", hour, minute, second)
+            }
+
+            return String(format: "%02d:%02d", hour, minute)
+        }
+
         var formatStyle = Date.FormatStyle()
-            .hour(use24HourFormat ? .twoDigits(amPM: .omitted) : .defaultDigits(amPM: .abbreviated))
+            .hour(.defaultDigits(amPM: .abbreviated))
             .minute()
 
         if showSeconds && purchaseManager.isPremium {
