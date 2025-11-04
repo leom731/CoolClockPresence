@@ -23,6 +23,7 @@ struct ClockPresenceView: View {
     @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
     @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
     @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
+    @AppStorage("glassStyle") private var glassStyle: String = "liquid"
 
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
@@ -82,7 +83,7 @@ struct ClockPresenceView: View {
         GeometryReader { geometry in
             let currentScale = scale(for: geometry.size)
             ZStack {
-                GlassBackdrop()
+                GlassBackdrop(style: glassStyle)
 
                 VStack(spacing: 4 * currentScale) {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -140,6 +141,29 @@ struct ClockPresenceView: View {
                         fontColorButton(title: "Mint", colorName: "mint")
                         fontColorButton(title: "Teal", colorName: "teal")
                         fontColorButton(title: "Indigo", colorName: "indigo")
+                    }
+                }
+                Divider()
+
+                // Glass Style submenu
+                Menu("Glass Style") {
+                    Button {
+                        glassStyle = "liquid"
+                    } label: {
+                        if glassStyle == "liquid" {
+                            Label("Liquid Glass", systemImage: "checkmark")
+                        } else {
+                            Text("Liquid Glass")
+                        }
+                    }
+                    Button {
+                        glassStyle = "clear"
+                    } label: {
+                        if glassStyle == "clear" {
+                            Label("Clear Glass", systemImage: "checkmark")
+                        } else {
+                            Text("Clear Glass")
+                        }
                     }
                 }
                 Divider()
@@ -497,7 +521,63 @@ class BatteryMonitor: ObservableObject {
 // MARK: - Glass Backdrop
 
 private struct GlassBackdrop: View {
+    let style: String
+
     var body: some View {
+        if style == "liquid" {
+            liquidGlassStyle
+        } else {
+            clearGlassStyle
+        }
+    }
+
+    // New Liquid Glass effect - more vibrant and visible
+    private var liquidGlassStyle: some View {
+        ZStack {
+            // Base material layer with better visibility
+            RoundedRectangle(cornerRadius: 40, style: .continuous)
+                .fill(.regularMaterial)
+                .opacity(0.9)
+
+            // Vibrant gradient overlay
+            RoundedRectangle(cornerRadius: 40, style: .continuous)
+                .fill(
+                    LinearGradient(colors: [
+                        Color.cyan.opacity(0.15),
+                        Color.purple.opacity(0.12),
+                        Color.blue.opacity(0.15),
+                        Color.pink.opacity(0.1)
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                .blur(radius: 20)
+
+            // Shimmer highlight layer
+            RoundedRectangle(cornerRadius: 40, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(colors: [
+                        Color.white.opacity(0.3),
+                        Color.white.opacity(0.1),
+                        Color.clear
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 1.5
+                )
+
+            // Inner glow for depth
+            RoundedRectangle(cornerRadius: 38, style: .continuous)
+                .fill(
+                    RadialGradient(colors: [
+                        Color.white.opacity(0.08),
+                        Color.clear
+                    ], center: .topLeading, startRadius: 0, endRadius: 300)
+                )
+                .padding(2)
+        }
+        .shadow(color: Color.black.opacity(0.15), radius: 25, x: 0, y: 12)
+        .shadow(color: Color.cyan.opacity(0.08), radius: 15, x: 0, y: 5)
+    }
+
+    // Original Clear Glass style
+    private var clearGlassStyle: some View {
         ZStack {
             // Outer border layer for smooth edge - made nearly transparent
             RoundedRectangle(cornerRadius: 40, style: .continuous)

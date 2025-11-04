@@ -63,7 +63,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             "windowY": -1.0,
             "windowWidth": 280.0,
             "windowHeight": 100.0,
-            "hasCompletedOnboarding": false
+            "hasCompletedOnboarding": false,
+            "glassStyle": "liquid"
         ])
 
         // Setup Menu Bar Extra (status bar item)
@@ -143,6 +144,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(fontColorItem)
         menu.addItem(NSMenuItem.separator())
 
+        // Glass Style submenu
+        let glassStyleMenu = NSMenu()
+        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Liquid Glass", styleName: "liquid"))
+        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Clear Glass", styleName: "clear"))
+
+        let glassStyleItem = NSMenuItem(title: "Glass Style", action: nil, keyEquivalent: "")
+        glassStyleItem.submenu = glassStyleMenu
+        menu.addItem(glassStyleItem)
+        menu.addItem(NSMenuItem.separator())
+
         // Premium features
         if isPremium {
             let showSecondsItem = NSMenuItem(title: "Show Seconds", action: #selector(toggleSeconds), keyEquivalent: "")
@@ -202,6 +213,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func changeFontColor(_ sender: NSMenuItem) {
         if let colorName = sender.representedObject as? String {
             defaults.set(colorName, forKey: "fontColorName")
+            updateMenuBarMenu()
+        }
+    }
+
+    private func createGlassStyleMenuItem(title: String, styleName: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: #selector(changeGlassStyle(_:)), keyEquivalent: "")
+        item.representedObject = styleName
+
+        // Add checkmark if this is the current style
+        let currentStyle = defaults.string(forKey: "glassStyle") ?? "liquid"
+        if currentStyle == styleName {
+            item.state = .on
+        }
+
+        return item
+    }
+
+    @objc private func changeGlassStyle(_ sender: NSMenuItem) {
+        if let styleName = sender.representedObject as? String {
+            defaults.set(styleName, forKey: "glassStyle")
             updateMenuBarMenu()
         }
     }
