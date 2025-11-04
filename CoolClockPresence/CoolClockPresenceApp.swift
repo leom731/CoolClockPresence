@@ -210,14 +210,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelpWindow), keyEquivalent: "?"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Show Onboarding Again", action: #selector(showOnboardingAgain), keyEquivalent: ""))
-
-        // Hidden debug option (only visible when Option key is held)
-        if NSEvent.modifierFlags.contains(.option) {
-            menu.addItem(NSMenuItem.separator())
-            let debugItem = NSMenuItem(title: "🐛 Reset Promo Codes (Debug)", action: #selector(resetPromoCodesDebug), keyEquivalent: "")
-            menu.addItem(debugItem)
-        }
-
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit CoolClockPresence", action: #selector(quitApp), keyEquivalent: "q"))
     }
@@ -333,23 +325,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
-    }
-
-    @objc private func resetPromoCodesDebug() {
-        // Reset all promo code data
-        PromoCodeManager.shared.resetAllPromoCodes()
-        defaults.set(false, forKey: "isPremiumUnlocked")
-
-        // Show confirmation alert
-        let alert = NSAlert()
-        alert.messageText = "Debug: Promo Codes Reset"
-        alert.informativeText = "All promo codes have been reset. Premium status removed. Restart the app to see the purchase screen."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-
-        // Update menu to reflect changes
-        updateMenuBarMenu()
     }
 
     @objc private func showHelpWindow() {
