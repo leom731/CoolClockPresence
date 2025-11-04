@@ -17,6 +17,10 @@ struct PurchaseView: View {
     @State private var isPurchasing = false
     @State private var purchaseError: String?
     @State private var showingSuccess = false
+    @State private var promoCode = ""
+    @State private var isRedeemingPromo = false
+    @State private var promoError: String?
+    @State private var showPromoCodeField = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -68,6 +72,14 @@ struct PurchaseView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
 
+                // Promo code error message
+                if let error = promoError {
+                    Text(error)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+
                 // Success message
                 if showingSuccess {
                     HStack(spacing: 8) {
@@ -78,6 +90,61 @@ struct PurchaseView: View {
                             .foregroundStyle(.green)
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
+                }
+
+                // Promo Code Section
+                if !purchaseManager.isPremium {
+                    VStack(spacing: 8) {
+                        Button(action: {
+                            withAnimation {
+                                showPromoCodeField.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "gift.fill")
+                                    .font(.system(size: 12))
+                                Text("Have a Promo Code?")
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+
+                        if showPromoCodeField {
+                            VStack(spacing: 8) {
+                                HStack(spacing: 8) {
+                                    TextField("Enter code", text: $promoCode)
+                                        .textFieldStyle(.roundedBorder)
+                                        .textCase(.uppercase)
+                                        .autocorrectionDisabled()
+                                        .onSubmit {
+                                            redeemPromoCode()
+                                        }
+
+                                    Button(action: {
+                                        redeemPromoCode()
+                                    }) {
+                                        if isRedeemingPromo {
+                                            ProgressView()
+                                                .scaleEffect(0.7)
+                                                .frame(width: 16, height: 16)
+                                        } else {
+                                            Text("Redeem")
+                                                .font(.system(size: 13, weight: .semibold))
+                                        }
+                                    }
+                                    .buttonStyle(PromoRedeemButtonStyle())
+                                    .disabled(promoCode.isEmpty || isRedeemingPromo)
+                                }
+                            }
+                            .padding(.horizontal, 4)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+                    }
+                    .padding(.vertical, 8)
+
+                    Divider()
+                        .padding(.vertical, 4)
                 }
 
                 // Purchase button
@@ -171,6 +238,28 @@ struct PurchaseView: View {
 
         isPurchasing = false
     }
+
+    private func redeemPromoCode() {
+        isRedeemingPromo = true
+        promoError = nil
+        purchaseError = nil
+
+        do {
+            try PromoCodeManager.shared.validateAndRedeemCode(promoCode)
+            showingSuccess = true
+            promoCode = ""
+            showPromoCodeField = false
+
+            // Auto-dismiss after 2 seconds
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                dismiss()
+            }
+        } catch {
+            promoError = error.localizedDescription
+        }
+
+        isRedeemingPromo = false
+    }
 }
 
 // MARK: - Feature Row
@@ -250,6 +339,29 @@ struct TertiaryPurchaseButtonStyle: ButtonStyle {
             .font(.system(size: 13, weight: .regular))
             .foregroundColor(.secondary)
             .opacity(configuration.isPressed ? 0.6 : 1.0)
+    }
+}
+
+struct PromoRedeemButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.purple, Color.pink],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+            )
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 

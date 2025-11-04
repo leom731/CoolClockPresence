@@ -23,9 +23,19 @@ class PurchaseManager: ObservableObject {
     private let productID = "com.leomanderico.coolclockpresence.premium"
     private var updateListenerTask: Task<Void, Error>?
 
-    // Premium status based on StoreKit purchases only
+    // Premium status based on StoreKit purchases OR promo code
     var isPremium: Bool {
-        purchasedProductIDs.contains(productID)
+        // Check StoreKit purchase
+        if purchasedProductIDs.contains(productID) {
+            return true
+        }
+
+        // Check promo code unlock
+        if UserDefaults.standard.bool(forKey: "unlockedViaPromoCode") {
+            return true
+        }
+
+        return false
     }
 
     private init() {
