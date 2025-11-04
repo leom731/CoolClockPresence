@@ -29,7 +29,6 @@ struct ClockPresenceView: View {
     @StateObject private var batteryMonitor = BatteryMonitor()
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var showingPurchaseSheet = false
-    @State private var showBatteryPercentage: Bool = true
 
     private var fontColor: Color {
         switch fontColorName {
@@ -103,11 +102,17 @@ struct ClockPresenceView: View {
                                 scale: currentScale
                             )
 
-                            Text("\(batteryMonitor.batteryLevel)%")
-                                .font(batteryFont(for: currentScale))
-                                .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
-                                // Battery flash theshold
-                                .opacity(batteryMonitor.batteryLevel <= 25 ? (showBatteryPercentage ? 1 : 0) : 1)
+                            // Use TimelineView for flashing without state changes
+                            TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                                // Only flash if battery is low AND not plugged in
+                                let shouldFlash = batteryMonitor.batteryLevel <= 25 && !batteryMonitor.isPluggedIn
+                                let isVisible = shouldFlash ? (Int(context.date.timeIntervalSince1970 * 2) % 2 == 0) : true
+
+                                Text("\(batteryMonitor.batteryLevel)%")
+                                    .font(batteryFont(for: currentScale))
+                                    .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
+                                    .opacity(isVisible ? 1 : 0)
+                            }
                         }
                     }
                 }
@@ -199,14 +204,6 @@ struct ClockPresenceView: View {
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
         .animation(.easeInOut(duration: 0.2), value: clockOpacity)
-        .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
-            // Battery flash theshold
-            if batteryMonitor.batteryLevel <= 25 {
-                showBatteryPercentage.toggle()
-            } else {
-                showBatteryPercentage = true
-            }
-        }
     }
 
     @ViewBuilder

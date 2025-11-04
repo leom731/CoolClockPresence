@@ -20,118 +20,117 @@ struct PurchaseView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            VStack(spacing: 12) {
-                Image(systemName: "star.circle.fill")
-                    .font(.system(size: 64, weight: .thin))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.cyan, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .padding(.top, 32)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 12) {
+                        Image(systemName: "star.circle.fill")
+                            .font(.system(size: 64, weight: .thin))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.cyan, .purple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
 
-                Text("Upgrade to Premium")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+                        Text("Upgrade to Premium")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
 
-                Text("Unlock all features for just $1.99")
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-                    .padding(.bottom, 8)
-            }
+                        Text("Unlock all features for just $1.99")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.secondary)
+                    }
 
-            // Features list
-            VStack(alignment: .leading, spacing: 16) {
-                FeatureRow(icon: "battery.100percent.bolt", color: .green, title: "Battery Monitor", description: "Track level and charging status")
-                FeatureRow(icon: "timer", color: .cyan, title: "Advanced Time Controls", description: "Show seconds or switch to 24-hour format")
-                FeatureRow(icon: "paintpalette.fill", color: .pink, title: "All Font Colors", description: "Unlock 13 vibrant styles")
-                FeatureRow(icon: "slider.horizontal.3", color: .purple, title: "Clock Opacity", description: "Dial in the perfect transparency")
-                FeatureRow(icon: "pin.fill", color: .blue, title: "Always on Top", description: "Keep the clock above every window")
-                FeatureRow(icon: "eye.slash.fill", color: .indigo, title: "Hover Transparency", description: "Auto-fade on hover for a clear view")
-                FeatureRow(icon: "memorychip.fill", color: .orange, title: "Position Memory", description: "Remember window location and size")
-            }
-            .padding(.horizontal, 40)
-            .padding(.vertical, 24)
-
-            Spacer()
-
-            // Error message
-            if let error = purchaseError {
-                Text(error)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 8)
-            }
-
-            // Success message
-            if showingSuccess {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Premium Unlocked! Enjoy!")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.green)
+                    // Features list
+                    VStack(alignment: .leading, spacing: 16) {
+                        FeatureRow(icon: "battery.100percent.bolt", color: .green, title: "Battery Monitor", description: "Track level and charging status")
+                        FeatureRow(icon: "timer", color: .cyan, title: "Advanced Time Controls", description: "Show seconds or switch to 24-hour format")
+                        FeatureRow(icon: "paintpalette.fill", color: .pink, title: "All Font Colors", description: "Unlock 13 vibrant styles")
+                        FeatureRow(icon: "slider.horizontal.3", color: .purple, title: "Clock Opacity", description: "Dial in the perfect transparency")
+                        FeatureRow(icon: "pin.fill", color: .blue, title: "Always on Top", description: "Keep the clock above every window")
+                        FeatureRow(icon: "eye.slash.fill", color: .indigo, title: "Hover Transparency", description: "Auto-fade on hover for a clear view")
+                        FeatureRow(icon: "memorychip.fill", color: .orange, title: "Position Memory", description: "Remember window location and size")
+                    }
                 }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 12)
+                .padding(.horizontal, 40)
+                .padding(.vertical, 32)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
 
-            // Purchase button
-            if purchaseManager.isPremium {
-                Button("Already Premium - Close") {
+            VStack(spacing: 12) {
+                // Error message
+                if let error = purchaseError {
+                    Text(error)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+
+                // Success message
+                if showingSuccess {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text("Premium Unlocked! Enjoy!")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.green)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+
+                // Purchase button
+                if purchaseManager.isPremium {
+                    Button("Already Premium - Close") {
+                        dismiss()
+                    }
+                    .buttonStyle(PrimaryPurchaseButtonStyle())
+                    .padding(.top, 4)
+                } else {
+                    Button(action: {
+                        Task {
+                            await purchase()
+                        }
+                    }) {
+                        if isPurchasing {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .frame(width: 16, height: 16)
+                                Text("Processing...")
+                            }
+                        } else if let product = purchaseManager.products.first {
+                            Text("Purchase Premium - \(product.displayPrice)")
+                        } else {
+                            Text("Purchase Premium - $1.99")
+                        }
+                    }
+                    .buttonStyle(PrimaryPurchaseButtonStyle())
+                    .disabled(isPurchasing)
+
+                    Button("Restore Purchases") {
+                        Task {
+                            await restorePurchases()
+                        }
+                    }
+                    .buttonStyle(SecondaryPurchaseButtonStyle())
+                    .disabled(isPurchasing)
+                }
+
+                // Close button
+                Button("Close") {
                     dismiss()
                 }
-                .buttonStyle(PrimaryPurchaseButtonStyle())
-                .padding(.horizontal, 32)
-                .padding(.bottom, 16)
-            } else {
-                Button(action: {
-                    Task {
-                        await purchase()
-                    }
-                }) {
-                    if isPurchasing {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                                .frame(width: 16, height: 16)
-                            Text("Processing...")
-                        }
-                    } else if let product = purchaseManager.products.first {
-                        Text("Purchase Premium - \(product.displayPrice)")
-                    } else {
-                        Text("Purchase Premium - $1.99")
-                    }
-                }
-                .buttonStyle(PrimaryPurchaseButtonStyle())
-                .disabled(isPurchasing)
-                .padding(.horizontal, 32)
-                .padding(.bottom, 8)
-
-                Button("Restore Purchases") {
-                    Task {
-                        await restorePurchases()
-                    }
-                }
-                .buttonStyle(SecondaryPurchaseButtonStyle())
-                .disabled(isPurchasing)
-                .padding(.horizontal, 32)
-                .padding(.bottom, 16)
+                .buttonStyle(TertiaryPurchaseButtonStyle())
+                .keyboardShortcut(.cancelAction)
+                .padding(.top, 4)
             }
-
-            // Close button
-            Button("Close") {
-                dismiss()
-            }
-            .buttonStyle(TertiaryPurchaseButtonStyle())
-            .keyboardShortcut(.cancelAction)
-            .padding(.bottom, 24)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity)
         }
-        .frame(width: 500, height: 600)
+        .frame(minWidth: 500, idealWidth: 500, maxWidth: 500, minHeight: 620)
         .background(VisualEffectBlur(material: .sidebar, blendingMode: .behindWindow))
     }
 
