@@ -174,6 +174,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             showSecondsItem.state = defaults.bool(forKey: "showSeconds") ? .on : .off
             menu.addItem(showSecondsItem)
 
+            let use24HourItem = NSMenuItem(title: "Use 24-Hour Format", action: #selector(toggleUse24HourFormat), keyEquivalent: "")
+            use24HourItem.state = defaults.bool(forKey: "use24HourFormat") ? .on : .off
+            menu.addItem(use24HourItem)
+
             let showBatteryItem = NSMenuItem(title: "Show Battery", action: #selector(toggleBattery), keyEquivalent: "")
             showBatteryItem.state = defaults.bool(forKey: "showBattery") ? .on : .off
             menu.addItem(showBatteryItem)
@@ -187,6 +191,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             menu.addItem(disappearOnHoverItem)
         } else {
             menu.addItem(NSMenuItem(title: "Show Seconds 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Use 24-Hour Format 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Show Battery 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Always on Top 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Disappear on Hover 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
@@ -260,6 +265,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     @objc private func toggleSeconds() {
         let current = defaults.bool(forKey: "showSeconds")
         defaults.set(!current, forKey: "showSeconds")
+        updateMenuBarMenu()
+    }
+
+    @objc private func toggleUse24HourFormat() {
+        let current = defaults.bool(forKey: "use24HourFormat")
+        defaults.set(!current, forKey: "use24HourFormat")
         updateMenuBarMenu()
     }
 

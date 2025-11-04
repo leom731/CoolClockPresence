@@ -85,7 +85,7 @@ struct SettingsView: View {
 
             // Settings Tab (Combined Display & Behavior)
             Form {
-                Section(header: Text("Clock Options").font(.headline)) {
+                VStack(alignment: .leading, spacing: 16) {
                     if purchaseManager.isPremium {
                         Toggle("Show Seconds", isOn: $showSeconds)
                         Toggle("Use 24-Hour Format", isOn: $use24HourFormat)
@@ -97,10 +97,7 @@ struct SettingsView: View {
                             showingPurchaseSheet = true
                         }
                     }
-                }
-                .padding(.bottom, 8)
 
-                Section(header: Text("Battery Display").font(.headline)) {
                     if purchaseManager.isPremium {
                         Toggle("Show Battery", isOn: $showBattery)
                     } else {
@@ -108,10 +105,7 @@ struct SettingsView: View {
                             showingPurchaseSheet = true
                         }
                     }
-                }
-                .padding(.bottom, 8)
 
-                Section(header: Text("Window Behavior").font(.headline)) {
                     if purchaseManager.isPremium {
                         Toggle("Always on Top", isOn: $isAlwaysOnTop)
                         Toggle("Disappear on Hover", isOn: $disappearOnHover)
@@ -123,16 +117,14 @@ struct SettingsView: View {
                             showingPurchaseSheet = true
                         }
                     }
-                }
-                .padding(.bottom, 8)
 
-                Section(header: Text("Other").font(.headline)) {
                     Button("Show Onboarding Again") {
                         NotificationCenter.default.post(name: NSNotification.Name("ShowOnboardingAgain"), object: nil)
                         // Close settings window after triggering onboarding
                         NSApp.windows.first(where: { $0.title == "Settings" })?.close()
                     }
                 }
+                .padding()
             }
             .tabItem {
                 Label("Settings", systemImage: "gearshape.fill")

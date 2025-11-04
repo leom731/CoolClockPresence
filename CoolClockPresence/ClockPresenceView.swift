@@ -171,11 +171,15 @@ struct ClockPresenceView: View {
                 // Premium features
                 if purchaseManager.isPremium {
                     Toggle("Show Seconds", isOn: $showSeconds)
+                    Toggle("Use 24-Hour Format", isOn: $use24HourFormat)
                     Toggle("Show Battery", isOn: $showBattery)
                     Toggle("Always on Top", isOn: $isAlwaysOnTop)
                     Toggle("Disappear on Hover", isOn: $disappearOnHover)
                 } else {
                     Button("Show Seconds 🔒 Premium") {
+                        showingPurchaseSheet = true
+                    }
+                    Button("Use 24-Hour Format 🔒 Premium") {
                         showingPurchaseSheet = true
                     }
                     Button("Show Battery 🔒 Premium") {
