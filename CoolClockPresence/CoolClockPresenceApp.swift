@@ -163,6 +163,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let glassStyleMenu = NSMenu()
         glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Liquid Glass", styleName: "liquid"))
         glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Clear Glass", styleName: "clear"))
+        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Black Glass", styleName: "black"))
 
         let glassStyleItem = NSMenuItem(title: "Glass Style", action: nil, keyEquivalent: "")
         glassStyleItem.submenu = glassStyleMenu

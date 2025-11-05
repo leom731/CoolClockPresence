@@ -111,15 +111,23 @@ struct ClockPresenceView: View {
 
                 VStack(spacing: 4 * currentScale) {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        OutlinedText(
-                            text: formattedTime(from: context.date),
-                            font: clockFont(for: currentScale),
-                            fillColor: fontColor.opacity(0.92),
-                            strokeColor: strokeColor,
-                            lineWidth: max(0.5, 1.1 * currentScale)
-                        )
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
+                        if fontColorName == "black" {
+                            OutlinedText(
+                                text: formattedTime(from: context.date),
+                                font: clockFont(for: currentScale),
+                                fillColor: fontColor.opacity(0.92),
+                                strokeColor: strokeColor,
+                                lineWidth: max(0.5, 1.1 * currentScale)
+                            )
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
+                        } else {
+                            Text(formattedTime(from: context.date))
+                                .font(clockFont(for: currentScale))
+                                .foregroundStyle(fontColor.opacity(0.92))
+                                .minimumScaleFactor(0.5)
+                                .lineLimit(1)
+                        }
                     }
 
                     // Battery Status (Premium Only)
@@ -191,6 +199,15 @@ struct ClockPresenceView: View {
                             Label("Clear Glass", systemImage: "checkmark")
                         } else {
                             Text("Clear Glass")
+                        }
+                    }
+                    Button {
+                        glassStyle = "black"
+                    } label: {
+                        if glassStyle == "black" {
+                            Label("Black Glass", systemImage: "checkmark")
+                        } else {
+                            Text("Black Glass")
                         }
                     }
                 }
@@ -592,6 +609,8 @@ private struct GlassBackdrop: View {
     var body: some View {
         if style == "liquid" {
             liquidGlassStyle
+        } else if style == "black" {
+            blackGlassStyle
         } else {
             clearGlassStyle
         }
@@ -674,6 +693,37 @@ private struct GlassBackdrop: View {
                 .padding(1.5)
         }
         .shadow(color: Color.black.opacity(0.05), radius: 20, x: 0, y: 10)
+    }
+
+    // Black Glass style - all black background
+    private var blackGlassStyle: some View {
+        ZStack {
+            // Solid black base layer
+            RoundedRectangle(cornerRadius: 40, style: .continuous)
+                .fill(Color.black.opacity(0.95))
+
+            // Subtle edge highlight for definition
+            RoundedRectangle(cornerRadius: 40, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(colors: [
+                        Color.white.opacity(0.15),
+                        Color.white.opacity(0.05),
+                        Color.clear
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 1
+                )
+
+            // Very subtle inner glow for depth
+            RoundedRectangle(cornerRadius: 38, style: .continuous)
+                .fill(
+                    RadialGradient(colors: [
+                        Color.white.opacity(0.03),
+                        Color.clear
+                    ], center: .topLeading, startRadius: 0, endRadius: 300)
+                )
+                .padding(2)
+        }
+        .shadow(color: Color.black.opacity(0.5), radius: 30, x: 0, y: 15)
     }
 }
 
