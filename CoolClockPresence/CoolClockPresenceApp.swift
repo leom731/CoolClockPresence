@@ -57,6 +57,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set default preferences
         defaults.register(defaults: [
+            "fontColorName": "green",
             "clockPresence.alwaysOnTop": true,
             "disappearOnHover": true,
             "windowX": -1.0,  // -1 means not set yet, will center on first launch
@@ -135,16 +136,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         // Free colors
         fontColorMenu.addItem(createFontColorMenuItem(title: "White", colorName: "white"))
-        fontColorMenu.addItem(createFontColorMenuItem(title: "Cyan", colorName: "cyan"))
+        fontColorMenu.addItem(createFontColorMenuItem(title: "Green", colorName: "green"))
 
         // Premium colors
         if isPremium {
             fontColorMenu.addItem(NSMenuItem.separator())
             fontColorMenu.addItem(createFontColorMenuItem(title: "Black", colorName: "black"))
+            fontColorMenu.addItem(createFontColorMenuItem(title: "Cyan", colorName: "cyan"))
             fontColorMenu.addItem(createFontColorMenuItem(title: "Red", colorName: "red"))
             fontColorMenu.addItem(createFontColorMenuItem(title: "Orange", colorName: "orange"))
             fontColorMenu.addItem(createFontColorMenuItem(title: "Yellow", colorName: "yellow"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Green", colorName: "green"))
             fontColorMenu.addItem(createFontColorMenuItem(title: "Blue", colorName: "blue"))
             fontColorMenu.addItem(createFontColorMenuItem(title: "Purple", colorName: "purple"))
             fontColorMenu.addItem(createFontColorMenuItem(title: "Pink", colorName: "pink"))
@@ -219,7 +220,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         item.representedObject = colorName
 
         // Add checkmark if this is the current color
-        let currentColor = defaults.string(forKey: "fontColorName") ?? "cyan"
+        let currentColor = defaults.string(forKey: "fontColorName") ?? "green"
         if currentColor == colorName {
             item.state = .on
         }

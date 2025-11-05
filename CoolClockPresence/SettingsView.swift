@@ -11,7 +11,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage("fontColorName") private var fontColorName: String = "cyan"
+    @AppStorage("fontColorName") private var fontColorName: String = "green"
     @AppStorage("showBattery") private var showBattery: Bool = true
     @AppStorage("showSeconds") private var showSeconds: Bool = true
     @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
@@ -30,16 +30,16 @@ struct SettingsView: View {
                     VStack(alignment: .center, spacing: 4) {
                         // Free colors
                         colorButton(title: "White", colorName: "white")
-                        colorButton(title: "Cyan", colorName: "cyan")
+                        colorButton(title: "Green", colorName: "green")
 
                         // Premium colors
                         if purchaseManager.isPremium {
                             Divider()
                             colorButton(title: "Black", colorName: "black")
+                            colorButton(title: "Cyan", colorName: "cyan")
                             colorButton(title: "Red", colorName: "red")
                             colorButton(title: "Orange", colorName: "orange")
                             colorButton(title: "Yellow", colorName: "yellow")
-                            colorButton(title: "Green", colorName: "green")
                             colorButton(title: "Blue", colorName: "blue")
                             colorButton(title: "Purple", colorName: "purple")
                             colorButton(title: "Pink", colorName: "pink")

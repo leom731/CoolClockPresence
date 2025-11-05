@@ -16,7 +16,8 @@ import IOKit.ps
 
 /// A compact glass-inspired clock that can float above other windows.
 struct ClockPresenceView: View {
-    @AppStorage("fontColorName") private var fontColorName: String = "cyan"
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("fontColorName") private var fontColorName: String = "green"
     @AppStorage("showBattery") private var showBattery: Bool = true
     @AppStorage("showSeconds") private var showSeconds: Bool = true
     @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
@@ -47,7 +48,7 @@ struct ClockPresenceView: View {
         case "teal": return .teal
         case "indigo": return .indigo
         case "primary": return .primary
-        default: return .cyan
+        default: return .green
         }
     }
 
@@ -93,19 +94,32 @@ struct ClockPresenceView: View {
         return date.formatted(formatStyle)
     }
 
+    private func outlineColorForBackground() -> Color {
+        if colorScheme == .dark {
+            return Color(white: 0.88)
+        } else {
+            return Color.black.opacity(0.78)
+        }
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let currentScale = scale(for: geometry.size)
+            let strokeColor = outlineColorForBackground()
             ZStack {
                 GlassBackdrop(style: glassStyle)
 
                 VStack(spacing: 4 * currentScale) {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(formattedTime(from: context.date))
-                            .font(clockFont(for: currentScale))
-                            .foregroundStyle(fontColor.opacity(0.92))
-                            .minimumScaleFactor(0.5)
-                            .lineLimit(1)
+                        OutlinedText(
+                            text: formattedTime(from: context.date),
+                            font: clockFont(for: currentScale),
+                            fillColor: fontColor.opacity(0.92),
+                            strokeColor: strokeColor,
+                            lineWidth: max(0.5, 1.1 * currentScale)
+                        )
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
                     }
 
                     // Battery Status (Premium Only)
@@ -126,7 +140,7 @@ struct ClockPresenceView: View {
                                 Text("\(batteryMonitor.batteryLevel)%")
                                     .font(batteryFont(for: currentScale))
                                     .foregroundStyle(batteryMonitor.batteryPercentageColor.opacity(0.92))
-                                    .opacity(isVisible ? 1 : 0)
+                                .opacity(isVisible ? 1 : 0)
                             }
                         }
                     }
@@ -139,16 +153,16 @@ struct ClockPresenceView: View {
                 Menu("Font Color") {
                     // Free colors
                     fontColorButton(title: "White", colorName: "white")
-                    fontColorButton(title: "Cyan", colorName: "cyan")
+                    fontColorButton(title: "Green", colorName: "green")
 
                     // Premium colors
                     if purchaseManager.isPremium {
                         Divider()
                         fontColorButton(title: "Black", colorName: "black")
+                        fontColorButton(title: "Cyan", colorName: "cyan")
                         fontColorButton(title: "Red", colorName: "red")
                         fontColorButton(title: "Orange", colorName: "orange")
                         fontColorButton(title: "Yellow", colorName: "yellow")
-                        fontColorButton(title: "Green", colorName: "green")
                         fontColorButton(title: "Blue", colorName: "blue")
                         fontColorButton(title: "Purple", colorName: "purple")
                         fontColorButton(title: "Pink", colorName: "pink")
@@ -259,6 +273,40 @@ struct ClockPresenceView: View {
                 Text(title)
             }
         }
+    }
+}
+
+// MARK: - Outlined Text Helper
+
+private struct OutlinedText: View {
+    let text: String
+    let font: Font
+    let fillColor: Color
+    let strokeColor: Color
+    let lineWidth: CGFloat
+
+    private var outlineOffsets: [(CGFloat, CGFloat)] {
+        let step = lineWidth / 2
+        return [
+            (-step, -step), (0, -step), (step, -step),
+            (-step, 0),                 (step, 0),
+            (-step, step),  (0, step),  (step, step)
+        ]
+    }
+
+    var body: some View {
+        ZStack {
+            ForEach(Array(outlineOffsets.enumerated()), id: \.offset) { item in
+                Text(text)
+                    .font(font)
+                    .foregroundColor(strokeColor)
+                    .offset(x: item.element.0, y: item.element.1)
+            }
+            Text(text)
+                .font(font)
+                .foregroundColor(fillColor)
+        }
+        .drawingGroup(opaque: false, colorMode: .extendedLinear)
     }
 }
 
