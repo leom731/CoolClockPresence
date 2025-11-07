@@ -25,6 +25,7 @@ struct ClockPresenceView: View {
     @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
     @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
     @AppStorage("glassStyle") private var glassStyle: String = "liquid"
+    @AppStorage("windowPositionPreset") private var windowPositionPreset: String = ClockWindowPosition.topCenter.rawValue
 
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
@@ -213,6 +214,13 @@ struct ClockPresenceView: View {
                 }
                 Divider()
 
+                Menu("Clock Position") {
+                    ForEach(ClockWindowPosition.allCases) { position in
+                        positionButton(for: position)
+                    }
+                }
+                Divider()
+
                 // Premium features
                 if purchaseManager.isPremium {
                     Toggle("Show Seconds", isOn: $showSeconds)
@@ -288,6 +296,20 @@ struct ClockPresenceView: View {
                 Label(title, systemImage: "checkmark")
             } else {
                 Text(title)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func positionButton(for position: ClockWindowPosition) -> some View {
+        Button {
+            windowPositionPreset = position.rawValue
+            (NSApplication.shared.delegate as? AppDelegate)?.applyWindowPosition(position)
+        } label: {
+            if windowPositionPreset == position.rawValue {
+                Label(position.displayName, systemImage: "checkmark")
+            } else {
+                Text(position.displayName)
             }
         }
     }

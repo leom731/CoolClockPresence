@@ -23,7 +23,8 @@ struct HelpView: View {
             items: [
                 HelpItem(question: "How do I move the clock?", answer: "Click and drag anywhere on the clock window to move it around your screen."),
                 HelpItem(question: "How do I resize the clock?", answer: "Click and drag from any corner or edge of the clock window to resize it."),
-                HelpItem(question: "Where are the settings?", answer: "Click the clock icon in the menu bar, or right-click on the clock window to access settings.")
+                HelpItem(question: "Where are the settings?", answer: "Click the clock icon in the menu bar, or right-click on the clock window to access settings."),
+                HelpItem(question: "How do I snap the clock to corners or the middle?", answer: "Open the menu bar icon (or right-click the clock) and choose Clock Position. Pick Top/Bottom + Left/Center/Right and the clock jumps there immediately.")
             ]
         ),
         HelpSection(

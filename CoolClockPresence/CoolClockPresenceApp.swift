@@ -53,6 +53,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     var helpWindow: NSWindow?
     private let defaults = UserDefaults.standard
     private var statusItem: NSStatusItem?
+    private var lastKnownWindowPresetValue: String?
+    private var isApplyingPositionPreset = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set default preferences
@@ -65,11 +67,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             "windowWidth": 280.0,
             "windowHeight": 100.0,
             "hasCompletedOnboarding": false,
-            "glassStyle": "liquid"
+            "glassStyle": "liquid",
+            "windowPositionPreset": ClockWindowPosition.topCenter.rawValue
         ])
+        lastKnownWindowPresetValue = defaults.string(forKey: "windowPositionPreset") ?? ClockWindowPosition.topCenter.rawValue
 
         // Setup Menu Bar Extra (status bar item)
         setupMenuBarExtra()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWindowPresetPreferenceChange),
+            name: UserDefaults.didChangeNotification,
+            object: nil
+        )
 
         NotificationCenter.default.addObserver(
             self,
@@ -170,6 +181,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         menu.addItem(glassStyleItem)
         menu.addItem(NSMenuItem.separator())
 
+        // Clock position submenu
+        let positionMenu = NSMenu()
+        let currentPreset = defaults.string(forKey: "windowPositionPreset") ?? ClockWindowPosition.topCenter.rawValue
+        ClockWindowPosition.allCases.forEach { position in
+            let item = NSMenuItem(title: position.displayName, action: #selector(snapWindowToPreset(_:)), keyEquivalent: "")
+            item.representedObject = position.rawValue
+            item.state = currentPreset == position.rawValue ? .on : .off
+            item.target = self
+            positionMenu.addItem(item)
+        }
+
+        let positionItem = NSMenuItem(title: "Clock Position", action: nil, keyEquivalent: "")
+        positionItem.submenu = positionMenu
+        menu.addItem(positionItem)
+        menu.addItem(NSMenuItem.separator())
+
         // Premium features
         if isPremium {
             let showSecondsItem = NSMenuItem(title: "Show Seconds", action: #selector(toggleSeconds), keyEquivalent: "")
@@ -253,6 +280,100 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if let styleName = sender.representedObject as? String {
             defaults.set(styleName, forKey: "glassStyle")
             updateMenuBarMenu()
+        }
+    }
+
+    @objc private func snapWindowToPreset(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let position = ClockWindowPosition(rawValue: rawValue) else {
+            return
+        }
+        applyWindowPosition(position)
+    }
+
+    @objc private func handleWindowPresetPreferenceChange() {
+        let currentValue = defaults.string(forKey: "windowPositionPreset") ?? ClockWindowPosition.topCenter.rawValue
+        guard currentValue != lastKnownWindowPresetValue else { return }
+        lastKnownWindowPresetValue = currentValue
+
+        guard currentValue != ClockWindowPosition.customIdentifier,
+              let preset = ClockWindowPosition(rawValue: currentValue) else {
+            return
+        }
+
+        applyWindowPosition(preset, persistPosition: false)
+    }
+
+    func applyWindowPosition(_ position: ClockWindowPosition, persistPosition: Bool = true) {
+        let performWork = { [weak self] in
+            guard let self else { return }
+            guard let panel = self.window else { return }
+            let candidateScreens: [NSScreen?] = [panel.screen, NSScreen.main, NSScreen.screens.first]
+            guard let screen = candidateScreens.compactMap({ $0 }).first else {
+                panel.center()
+                return
+            }
+
+            let origin = self.origin(for: position, in: screen.visibleFrame, windowSize: panel.frame.size)
+            let newFrame = NSRect(origin: origin, size: panel.frame.size)
+
+            self.isApplyingPositionPreset = true
+            panel.setFrame(newFrame, display: true, animate: false)
+            panel.displayIfNeeded()
+            panel.orderFrontRegardless()
+
+            self.defaults.set(origin.x, forKey: "windowX")
+            self.defaults.set(origin.y, forKey: "windowY")
+
+            if persistPosition {
+                self.lastKnownWindowPresetValue = position.rawValue
+                self.defaults.set(position.rawValue, forKey: "windowPositionPreset")
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                self?.isApplyingPositionPreset = false
+            }
+        }
+
+        if Thread.isMainThread {
+            performWork()
+        } else {
+            DispatchQueue.main.async(execute: performWork)
+        }
+    }
+
+    private func origin(for position: ClockWindowPosition, in screenFrame: NSRect, windowSize: NSSize, padding: CGFloat = 12) -> NSPoint {
+        switch position {
+        case .topLeft:
+            return NSPoint(
+                x: screenFrame.minX + padding,
+                y: screenFrame.maxY - windowSize.height - padding
+            )
+        case .topCenter:
+            return NSPoint(
+                x: screenFrame.midX - (windowSize.width / 2),
+                y: screenFrame.maxY - windowSize.height - padding
+            )
+        case .topRight:
+            return NSPoint(
+                x: screenFrame.maxX - windowSize.width - padding,
+                y: screenFrame.maxY - windowSize.height - padding
+            )
+        case .bottomLeft:
+            return NSPoint(
+                x: screenFrame.minX + padding,
+                y: screenFrame.minY + padding
+            )
+        case .bottomCenter:
+            return NSPoint(
+                x: screenFrame.midX - (windowSize.width / 2),
+                y: screenFrame.minY + padding
+            )
+        case .bottomRight:
+            return NSPoint(
+                x: screenFrame.maxX - windowSize.width - padding,
+                y: screenFrame.minY + padding
+            )
         }
     }
 
@@ -463,34 +584,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         hostingView.layer?.cornerCurve = .continuous
         hostingView.layer?.masksToBounds = true
 
-        // Restore saved position or position at top center if first launch
+        self.window = panel
+
+        // Restore saved position, preset, or default top center
         let savedX = defaults.double(forKey: "windowX")
         let savedY = defaults.double(forKey: "windowY")
+        let presetIsPersisted = defaults.object(forKey: "windowPositionPreset") != nil
+        let presetValue = presetIsPersisted ? defaults.string(forKey: "windowPositionPreset") : nil
 
-        if savedX >= 0 && savedY >= 0 {
-            // Restore saved position
+        if let presetValue,
+           let preset = ClockWindowPosition(rawValue: presetValue) {
+            applyWindowPosition(preset)
+        } else if savedX >= 0 && savedY >= 0 {
             panel.setFrameOrigin(NSPoint(x: savedX, y: savedY))
-        } else {
-            // First launch - position at top center, right below menu bar
-            if let screen = NSScreen.main {
-                let screenFrame = screen.visibleFrame
-                let padding: CGFloat = 8 // Small gap below menu bar
-
-                let xPos = screenFrame.origin.x + (screenFrame.width - width) / 2
-                let yPos = screenFrame.maxY - height - padding
-
-                panel.setFrameOrigin(NSPoint(x: xPos, y: yPos))
-            } else {
-                // Fallback to center if screen info unavailable
-                panel.center()
+            if !presetIsPersisted {
+                defaults.set(ClockWindowPosition.customIdentifier, forKey: "windowPositionPreset")
             }
+        } else {
+            applyWindowPosition(.topCenter)
         }
 
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         panel.delegate = self
-
-        self.window = panel
 
         // Observe window position changes to save them
         NotificationCenter.default.addObserver(
@@ -594,6 +710,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let origin = panel.frame.origin
         defaults.set(origin.x, forKey: "windowX")
         defaults.set(origin.y, forKey: "windowY")
+        if !isApplyingPositionPreset {
+            defaults.set(ClockWindowPosition.customIdentifier, forKey: "windowPositionPreset")
+            lastKnownWindowPresetValue = ClockWindowPosition.customIdentifier
+        }
     }
 
     @objc func windowDidResize(_ notification: Notification) {

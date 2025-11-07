@@ -33,6 +33,7 @@ struct OnboardingView: View {
                 "Drag anywhere to move",
                 "Resize from corners/edges",
                 "Access settings from menu bar or right-click",
+                "Snap to corners or mid-screen instantly using Clock Position presets",
                 "Hold ⌘ while hovering to keep the clock visible"
             ],
             isPremiumPage: false

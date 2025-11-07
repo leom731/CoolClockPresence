@@ -18,6 +18,7 @@ struct SettingsView: View {
     @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
     @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
     @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
+    @AppStorage("windowPositionPreset") private var windowPositionPreset: String = ClockWindowPosition.topCenter.rawValue
 
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var showingPurchaseSheet = false
@@ -125,6 +126,23 @@ struct SettingsView: View {
                     }
                 }
                 .padding()
+
+                Section(header: Text("Clock Position").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(ClockWindowPosition.allCases) { position in
+                            clockPositionButton(for: position)
+                        }
+
+                        if windowPositionPreset == ClockWindowPosition.customIdentifier {
+                            Text("Currently using a custom position. Drag the clock to move it anywhere.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 6)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                }
             }
             .tabItem {
                 Label("Settings", systemImage: "gearshape.fill")
@@ -187,6 +205,26 @@ struct SettingsView: View {
         .buttonStyle(.plain)
         .foregroundColor(.primary)
         .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func clockPositionButton(for position: ClockWindowPosition) -> some View {
+        Button {
+            windowPositionPreset = position.rawValue
+            (NSApplication.shared.delegate as? AppDelegate)?.applyWindowPosition(position)
+        } label: {
+            HStack {
+                Text(position.displayName)
+                Spacer()
+                if windowPositionPreset == position.rawValue {
+                    Image(systemName: "checkmark")
+                        .foregroundColor(.accentColor)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
