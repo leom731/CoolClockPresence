@@ -36,6 +36,21 @@ struct CoolClockPresenceApp: App {
                 Divider()
             }
 
+            CommandMenu("Clock Position") {
+                let currentPreset = UserDefaults.standard.string(forKey: "windowPositionPreset") ?? ClockWindowPosition.topCenter.rawValue
+                ForEach(ClockWindowPosition.allCases) { position in
+                    Button {
+                        appDelegate.applyWindowPosition(position)
+                    } label: {
+                        if currentPreset == position.rawValue {
+                            Label(position.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(position.displayName)
+                        }
+                    }
+                }
+            }
+
             // Add Help menu
             CommandGroup(replacing: .help) {
                 Button("CoolClockPresence Help") {

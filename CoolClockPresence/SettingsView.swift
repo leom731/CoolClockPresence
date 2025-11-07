@@ -18,10 +18,10 @@ struct SettingsView: View {
     @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
     @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
     @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
-    @AppStorage("windowPositionPreset") private var windowPositionPreset: String = ClockWindowPosition.topCenter.rawValue
 
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var showingPurchaseSheet = false
+    private let settingsColumnWidth: CGFloat = 260
 
     var body: some View {
         TabView {
@@ -85,64 +85,61 @@ struct SettingsView: View {
             }
 
             // Settings Tab (Combined Display & Behavior)
-            Form {
-                VStack(alignment: .leading, spacing: 16) {
-                    if purchaseManager.isPremium {
-                        Toggle("Show Seconds", isOn: $showSeconds)
-                        Toggle("Use 24-Hour Format", isOn: $use24HourFormat)
-                    } else {
-                        Button("Show Seconds 🔒 Premium") {
-                            showingPurchaseSheet = true
-                        }
-                        Button("Use 24-Hour Format 🔒 Premium") {
-                            showingPurchaseSheet = true
-                        }
-                    }
+            ScrollView {
+                VStack {
+                    Spacer(minLength: 24)
 
-                    if purchaseManager.isPremium {
-                        Toggle("Show Battery", isOn: $showBattery)
-                    } else {
-                        Button("Show Battery 🔒 Premium") {
-                            showingPurchaseSheet = true
-                        }
-                    }
+                    HStack {
+                        Spacer()
+                        VStack(alignment: .leading, spacing: 16) {
+                            if purchaseManager.isPremium {
+                                Toggle("Show Seconds", isOn: $showSeconds)
+                                Toggle("Use 24-Hour Format", isOn: $use24HourFormat)
+                            } else {
+                                Button("Show Seconds 🔒 Premium") {
+                                    showingPurchaseSheet = true
+                                }
+                                Button("Use 24-Hour Format 🔒 Premium") {
+                                    showingPurchaseSheet = true
+                                }
+                            }
 
-                    if purchaseManager.isPremium {
-                        Toggle("Always on Top", isOn: $isAlwaysOnTop)
-                        Toggle("Disappear on Hover", isOn: $disappearOnHover)
-                    } else {
-                        Button("Always on Top 🔒 Premium") {
-                            showingPurchaseSheet = true
-                        }
-                        Button("Disappear on Hover 🔒 Premium") {
-                            showingPurchaseSheet = true
-                        }
-                    }
+                            if purchaseManager.isPremium {
+                                Toggle("Show Battery", isOn: $showBattery)
+                            } else {
+                                Button("Show Battery 🔒 Premium") {
+                                    showingPurchaseSheet = true
+                                }
+                            }
 
-                    Button("Show Onboarding Again") {
-                        NotificationCenter.default.post(name: NSNotification.Name("ShowOnboardingAgain"), object: nil)
-                        // Close settings window after triggering onboarding
-                        NSApp.windows.first(where: { $0.title == "Settings" })?.close()
+                            if purchaseManager.isPremium {
+                                Toggle("Always on Top", isOn: $isAlwaysOnTop)
+                                Toggle("Disappear on Hover", isOn: $disappearOnHover)
+                            } else {
+                                Button("Always on Top 🔒 Premium") {
+                                    showingPurchaseSheet = true
+                                }
+                                Button("Disappear on Hover 🔒 Premium") {
+                                    showingPurchaseSheet = true
+                                }
+                            }
+
+                            Button("Show Onboarding Again") {
+                                NotificationCenter.default.post(name: NSNotification.Name("ShowOnboardingAgain"), object: nil)
+                                // Close settings window after triggering onboarding
+                                NSApp.windows.first(where: { $0.title == "Settings" })?.close()
+                            }
+                            .padding(.top, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(width: settingsColumnWidth, alignment: .leading)
+                        Spacer()
                     }
+                    .padding(.horizontal)
+
+                    Spacer(minLength: 24)
                 }
-                .padding()
-
-                Section(header: Text("Clock Position").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(ClockWindowPosition.allCases) { position in
-                            clockPositionButton(for: position)
-                        }
-
-                        if windowPositionPreset == ClockWindowPosition.customIdentifier {
-                            Text("Currently using a custom position. Drag the clock to move it anywhere.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding(.top, 6)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-                }
+                .frame(maxWidth: .infinity, alignment: .center)
             }
             .tabItem {
                 Label("Settings", systemImage: "gearshape.fill")
@@ -205,26 +202,6 @@ struct SettingsView: View {
         .buttonStyle(.plain)
         .foregroundColor(.primary)
         .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder
-    private func clockPositionButton(for position: ClockWindowPosition) -> some View {
-        Button {
-            windowPositionPreset = position.rawValue
-            (NSApplication.shared.delegate as? AppDelegate)?.applyWindowPosition(position)
-        } label: {
-            HStack {
-                Text(position.displayName)
-                Spacer()
-                if windowPositionPreset == position.rawValue {
-                    Image(systemName: "checkmark")
-                        .foregroundColor(.accentColor)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
