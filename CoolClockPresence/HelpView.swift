@@ -70,7 +70,7 @@ struct HelpView: View {
             iconColor: .orange,
             title: "Troubleshooting",
             items: [
-                HelpItem(question: "The clock disappeared, how do I get it back?", answer: "Click the clock icon in the menu bar and select 'Show Clock Window' to make it visible again."),
+                HelpItem(question: "The clock disappeared, how do I get it back?", answer: "Click the clock icon in the menu bar and select 'Show Clock Window' to make it visible again. If it fades while you're hovering, hold the ⌘ key to keep it visible and interact with it."),
                 HelpItem(question: "How do I reset my settings?", answer: "You can view the onboarding tutorial again from the menu bar by selecting 'Show Onboarding Again'."),
                 HelpItem(question: "The clock doesn't stay on top in full-screen", answer: "Make sure 'Always on Top' is enabled (Premium feature). The clock should appear on all desktops and spaces.")
             ]
