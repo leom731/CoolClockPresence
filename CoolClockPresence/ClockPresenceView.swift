@@ -120,7 +120,7 @@ struct ClockPresenceView: View {
         }
     }
 
-    private func formattedTime(from date: Date) -> String {
+    private func formattedTime(from date: Date, colonVisible: Bool = true) -> String {
         if use24HourFormat {
             let calendar = Calendar.autoupdatingCurrent
             let components = calendar.dateComponents([.hour, .minute, .second], from: date)
@@ -132,7 +132,8 @@ struct ClockPresenceView: View {
                 return String(format: "%02d:%02d:%02d", hour, minute, second)
             }
 
-            return String(format: "%02d:%02d", hour, minute)
+            let separator = colonVisible ? ":" : " "
+            return String(format: "%02d%@%02d", hour, separator, minute)
         }
 
         var formatStyle = Date.FormatStyle()
@@ -143,7 +144,14 @@ struct ClockPresenceView: View {
             formatStyle = formatStyle.second()
         }
 
-        return date.formatted(formatStyle)
+        let timeString = date.formatted(formatStyle)
+        
+        // Replace colon with space when not visible (only if seconds not shown)
+        if !colonVisible && !(showSeconds && purchaseManager.isPremium) {
+            return timeString.replacingOccurrences(of: ":", with: " ")
+        }
+        
+        return timeString
     }
 
     private func outlineColorForBackground() -> Color {
@@ -163,9 +171,13 @@ struct ClockPresenceView: View {
 
                 VStack(spacing: 4 * currentScale) {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
+                        // Calculate if colon should be visible (blink when seconds disabled)
+                        let shouldShowSeconds = showSeconds && purchaseManager.isPremium
+                        let colonVisible = shouldShowSeconds || (Int(context.date.timeIntervalSince1970) % 2 == 0)
+                        
                         if fontColorName == "black" {
                             OutlinedText(
-                                text: formattedTime(from: context.date),
+                                text: formattedTime(from: context.date, colonVisible: colonVisible),
                                 font: clockFont(for: currentScale),
                                 fillColor: fontColor.opacity(0.92),
                                 strokeColor: strokeColor,
@@ -174,7 +186,7 @@ struct ClockPresenceView: View {
                             .minimumScaleFactor(0.5)
                             .lineLimit(1)
                         } else {
-                            Text(formattedTime(from: context.date))
+                            Text(formattedTime(from: context.date, colonVisible: colonVisible))
                                 .font(clockFont(for: currentScale))
                                 .foregroundStyle(fontColor.opacity(0.92))
                                 .minimumScaleFactor(0.5)
