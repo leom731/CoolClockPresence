@@ -604,7 +604,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false  // Disable to allow edge resizing - custom drag handling in ActivatingPanel
         panel.titleVisibility = .hidden  // Keep hidden as in original
         panel.titlebarAppearsTransparent = true
         panel.hidesOnDeactivate = false
@@ -788,6 +788,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 }
 
 private final class ActivatingPanel: NSPanel {
+    private var dragStartLocation: NSPoint?
+    private var windowOriginAtDragStart: NSPoint?
+    
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
@@ -812,9 +815,67 @@ private final class ActivatingPanel: NSPanel {
         // Trigger cursor update based on mouse position
         updateCursorForMouseLocation(event.locationInWindow)
     }
+    
+    override func mouseDown(with event: NSEvent) {
+        let locationInWindow = event.locationInWindow
+        
+        // Check if click is near an edge (resize zone)
+        if isNearEdge(locationInWindow) {
+            // Let the system handle resizing - don't intercept
+            super.mouseDown(with: event)
+            return
+        }
+        
+        // Otherwise, prepare for manual dragging from center
+        dragStartLocation = event.locationInWindow
+        windowOriginAtDragStart = self.frame.origin
+        super.mouseDown(with: event)
+    }
+    
+    override func mouseDragged(with event: NSEvent) {
+        guard let dragStartLocation = dragStartLocation,
+              let windowOriginAtDragStart = windowOriginAtDragStart else {
+            // No drag start recorded, let system handle
+            super.mouseDragged(with: event)
+            return
+        }
+        
+        // Only handle dragging if we started in the center area
+        let currentMouseLocation = NSEvent.mouseLocation
+        
+        // Calculate offset from initial click
+        let dx = currentMouseLocation.x - (windowOriginAtDragStart.x + dragStartLocation.x)
+        let dy = currentMouseLocation.y - (windowOriginAtDragStart.y + dragStartLocation.y)
+        
+        // Move window
+        let newOrigin = NSPoint(
+            x: windowOriginAtDragStart.x + dx,
+            y: windowOriginAtDragStart.y + dy
+        )
+        self.setFrameOrigin(newOrigin)
+    }
+    
+    override func mouseUp(with event: NSEvent) {
+        dragStartLocation = nil
+        windowOriginAtDragStart = nil
+        super.mouseUp(with: event)
+    }
+    
+    private func isNearEdge(_ location: NSPoint) -> Bool {
+        let edgeThickness: CGFloat = 30.0
+        let windowBounds = NSRect(origin: .zero, size: frame.size)
+
+        let nearTop = location.y >= windowBounds.height - edgeThickness
+        let nearBottom = location.y <= edgeThickness
+        let nearLeft = location.x <= edgeThickness
+        let nearRight = location.x >= windowBounds.width - edgeThickness
+
+        return nearTop || nearBottom || nearLeft || nearRight
+    }
 
     private func updateCursorForMouseLocation(_ location: NSPoint) {
-        let edgeThickness: CGFloat = 8.0
+        // Increased edge thickness for easier grabbing - was 8, now 30 for even easier access
+        let edgeThickness: CGFloat = 30.0
 
         // Get window bounds in window coordinates
         let windowBounds = NSRect(origin: .zero, size: frame.size)
@@ -825,20 +886,43 @@ private final class ActivatingPanel: NSPanel {
         let nearLeft = location.x <= edgeThickness
         let nearRight = location.x >= windowBounds.width - edgeThickness
 
-        // Set appropriate cursor based on position
-        // Use the correct system cursors available in NSCursor
-        if (nearTop && nearLeft) || (nearBottom && nearRight) {
-            // Diagonal resize cursor (northwest-southeast)
-            NSCursor.arrow.set() // Fallback - system will handle resize
-        } else if (nearTop && nearRight) || (nearBottom && nearLeft) {
-            // Diagonal resize cursor (northeast-southwest)
-            NSCursor.arrow.set() // Fallback - system will handle resize
+        // Set appropriate cursor based on position - using private API cursors for diagonal resize
+        if nearTop && nearLeft {
+            // Top-left corner - resize from northwest
+            if let cursor = NSCursor.perform(NSSelectorFromString("_windowResizeNorthWestCursor"))?.takeUnretainedValue() as? NSCursor {
+                cursor.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+        } else if nearTop && nearRight {
+            // Top-right corner - resize from northeast
+            if let cursor = NSCursor.perform(NSSelectorFromString("_windowResizeNorthEastCursor"))?.takeUnretainedValue() as? NSCursor {
+                cursor.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+        } else if nearBottom && nearLeft {
+            // Bottom-left corner - resize from southwest
+            if let cursor = NSCursor.perform(NSSelectorFromString("_windowResizeSouthWestCursor"))?.takeUnretainedValue() as? NSCursor {
+                cursor.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+        } else if nearBottom && nearRight {
+            // Bottom-right corner - resize from southeast
+            if let cursor = NSCursor.perform(NSSelectorFromString("_windowResizeSouthEastCursor"))?.takeUnretainedValue() as? NSCursor {
+                cursor.set()
+            } else {
+                NSCursor.arrow.set()
+            }
         } else if nearTop || nearBottom {
             NSCursor.resizeUpDown.set()
         } else if nearLeft || nearRight {
             NSCursor.resizeLeftRight.set()
+        } else {
+            // Reset to default cursor when not near edges
+            NSCursor.arrow.set()
         }
-        // If not near edges, let the default cursor be used
     }
 }
 #endif

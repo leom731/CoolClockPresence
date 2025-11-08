@@ -33,6 +33,8 @@ struct ClockPresenceView: View {
     @StateObject private var batteryMonitor = BatteryMonitor()
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var showingPurchaseSheet = false
+    @State private var mouseLocation: CGPoint = .zero
+    @State private var showResizeHints: Bool = false
 
     private var fontColor: Color {
         switch fontColorName {
@@ -54,7 +56,7 @@ struct ClockPresenceView: View {
         }
     }
 
-    private let baseSize = CGSize(width: 280, height: 100)
+    private let baseSize = CGSize(width: 240, height: 80)
 
     private func scale(for size: CGSize) -> CGFloat {
         let widthScale = size.width / baseSize.width
@@ -201,7 +203,7 @@ struct ClockPresenceView: View {
             ZStack {
                 GlassBackdrop(style: glassStyle)
 
-                VStack(spacing: 4 * currentScale) {
+                VStack(spacing: 2 * currentScale) {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         // Calculate if colon should be visible (blink when seconds disabled)
                         let shouldShowSeconds = showSeconds && purchaseManager.isPremium
@@ -249,19 +251,13 @@ struct ClockPresenceView: View {
                                 }
                                 if let ampm = timeComponents(from: context.date).ampm {
                                     OutlinedText(
-                                        text: " ",
-                                        font: clockFont(for: currentScale),
-                                        fillColor: fontColor.opacity(0.92),
-                                        strokeColor: strokeColor,
-                                        lineWidth: max(0.5, 1.1 * currentScale)
-                                    )
-                                    OutlinedText(
                                         text: ampm,
                                         font: .system(size: 20 * currentScale, weight: .medium, design: .rounded),
                                         fillColor: fontColor.opacity(0.92),
                                         strokeColor: strokeColor,
                                         lineWidth: max(0.5, 1.1 * currentScale)
                                     )
+                                    .padding(.leading, 2 * currentScale)
                                 }
                             }
                             .minimumScaleFactor(0.5)
@@ -286,11 +282,10 @@ struct ClockPresenceView: View {
                                         .foregroundStyle(fontColor.opacity(0.92))
                                 }
                                 if let ampm = timeComponents(from: context.date).ampm {
-                                    Text(" ")
-                                        .font(clockFont(for: currentScale))
                                     Text(ampm)
                                         .font(.system(size: 20 * currentScale, weight: .medium, design: .rounded))
                                         .foregroundStyle(fontColor.opacity(0.92))
+                                        .padding(.leading, 2 * currentScale)
                                 }
                             }
                             .minimumScaleFactor(0.5)
@@ -321,8 +316,8 @@ struct ClockPresenceView: View {
                         }
                     }
                 }
-                .padding(.vertical, 12 * currentScale)
-                .padding(.horizontal, 16 * currentScale)
+                .padding(.vertical, 6 * currentScale)
+                .padding(.horizontal, 10 * currentScale)
             }
             .contentShape(Rectangle())
             .contextMenu {
@@ -455,9 +450,20 @@ struct ClockPresenceView: View {
                 isHovering: $isHovering,
                 isCommandKeyPressed: $isCommandKeyPressed,
                 isPremium: purchaseManager.isPremium,
-                disappearOnHover: disappearOnHover
+                disappearOnHover: disappearOnHover,
+                mouseLocation: $mouseLocation,
+                showResizeHints: $showResizeHints
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(false)
+        )
+        .overlay(
+            // Resize hint indicators
+            GeometryReader { geometry in
+                if showResizeHints {
+                    ResizeEdgeIndicators(size: geometry.size, mouseLocation: mouseLocation)
+                }
+            }
             .allowsHitTesting(false)
         )
         .frame(minWidth: baseSize.width * 0.6, minHeight: baseSize.height * 0.6)
@@ -550,9 +556,16 @@ struct HoverAndWindowController: NSViewRepresentable {
     @Binding var isCommandKeyPressed: Bool
     let isPremium: Bool
     let disappearOnHover: Bool
+    @Binding var mouseLocation: CGPoint
+    @Binding var showResizeHints: Bool
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(isHovering: $isHovering, isCommandKeyPressed: $isCommandKeyPressed)
+        Coordinator(
+            isHovering: $isHovering,
+            isCommandKeyPressed: $isCommandKeyPressed,
+            mouseLocation: $mouseLocation,
+            showResizeHints: $showResizeHints
+        )
     }
 
     func makeNSView(context: Context) -> HoverControlView {
@@ -572,14 +585,18 @@ struct HoverAndWindowController: NSViewRepresentable {
     class Coordinator {
         @Binding var isHovering: Bool
         @Binding var isCommandKeyPressed: Bool
+        @Binding var mouseLocation: CGPoint
+        @Binding var showResizeHints: Bool
         var isPremium: Bool = false
         var disappearOnHover: Bool = true
 
         private var updateWorkItem: DispatchWorkItem?
 
-        init(isHovering: Binding<Bool>, isCommandKeyPressed: Binding<Bool>) {
+        init(isHovering: Binding<Bool>, isCommandKeyPressed: Binding<Bool>, mouseLocation: Binding<CGPoint>, showResizeHints: Binding<Bool>) {
             _isHovering = isHovering
             _isCommandKeyPressed = isCommandKeyPressed
+            _mouseLocation = mouseLocation
+            _showResizeHints = showResizeHints
         }
 
         func updateWindow(_ window: NSWindow?, hovering: Bool, commandPressed: Bool) {
@@ -660,7 +677,7 @@ class HoverControlView: NSView {
 
             self.trackingArea = NSTrackingArea(
                 rect: self.bounds,
-                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
                 owner: self,
                 userInfo: nil
             )
@@ -674,15 +691,28 @@ class HoverControlView: NSView {
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
         coordinator?.isHovering = true
+        coordinator?.showResizeHints = true
         coordinator?.isCommandKeyPressed = event.modifierFlags.contains(.command)
+        updateMouseLocation(event)
         updateWindowState()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        updateMouseLocation(event)
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
         coordinator?.isHovering = false
+        coordinator?.showResizeHints = false
         coordinator?.isCommandKeyPressed = event.modifierFlags.contains(.command)
         updateWindowState()
+    }
+
+    private func updateMouseLocation(_ event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        coordinator?.mouseLocation = location
     }
 
     private func updateWindowState() {
@@ -836,12 +866,12 @@ private struct GlassBackdrop: View {
     private var liquidGlassStyle: some View {
         ZStack {
             // Base material layer with blur and transparency
-            RoundedRectangle(cornerRadius: 40, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .opacity(0.5)
 
             // Vibrant gradient overlay - slightly more opaque for visibility
-            RoundedRectangle(cornerRadius: 40, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(
                     LinearGradient(colors: [
                         Color.cyan.opacity(0.12),
@@ -853,7 +883,7 @@ private struct GlassBackdrop: View {
                 .blur(radius: 20)
 
             // Shimmer highlight layer
-            RoundedRectangle(cornerRadius: 40, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(
                     LinearGradient(colors: [
                         Color.white.opacity(0.4),
@@ -864,7 +894,7 @@ private struct GlassBackdrop: View {
                 )
 
             // Inner glow for depth
-            RoundedRectangle(cornerRadius: 38, style: .continuous)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(
                     RadialGradient(colors: [
                         Color.white.opacity(0.1),
@@ -881,7 +911,7 @@ private struct GlassBackdrop: View {
     private var clearGlassStyle: some View {
         ZStack {
             // Outer border layer for smooth edge - made nearly transparent
-            RoundedRectangle(cornerRadius: 40, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(
                     LinearGradient(colors: [
                         Color.white.opacity(0.02),
@@ -891,12 +921,12 @@ private struct GlassBackdrop: View {
                 .padding(0.5)
 
             // Inner glass layer - made very transparent
-            RoundedRectangle(cornerRadius: 39, style: .continuous)
+            RoundedRectangle(cornerRadius: 23, style: .continuous)
                 .fill(.ultraThinMaterial.opacity(0.05))
                 .padding(1.5)
 
             // Background gradient layer - made very subtle
-            RoundedRectangle(cornerRadius: 39, style: .continuous)
+            RoundedRectangle(cornerRadius: 23, style: .continuous)
                 .fill(
                     LinearGradient(colors: [
                         Color.cyan.opacity(0.02),
@@ -915,11 +945,11 @@ private struct GlassBackdrop: View {
     private var blackGlassStyle: some View {
         ZStack {
             // Solid black base layer
-            RoundedRectangle(cornerRadius: 40, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(Color.black.opacity(0.95))
 
             // Subtle edge highlight for definition
-            RoundedRectangle(cornerRadius: 40, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(
                     LinearGradient(colors: [
                         Color.white.opacity(0.15),
@@ -930,7 +960,7 @@ private struct GlassBackdrop: View {
                 )
 
             // Very subtle inner glow for depth
-            RoundedRectangle(cornerRadius: 38, style: .continuous)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(
                     RadialGradient(colors: [
                         Color.white.opacity(0.03),
@@ -940,6 +970,141 @@ private struct GlassBackdrop: View {
                 .padding(2)
         }
         .shadow(color: Color.black.opacity(0.5), radius: 30, x: 0, y: 15)
+    }
+}
+
+// MARK: - Resize Edge Indicators
+
+/// Visual indicators that appear near window edges to show where you can resize
+private struct ResizeEdgeIndicators: View {
+    let size: CGSize
+    let mouseLocation: CGPoint
+    
+    // Increased from 8 to 20 to match the window's edge detection
+    private let edgeThickness: CGFloat = 20.0
+    
+    private var isNearTop: Bool {
+        mouseLocation.y >= size.height - edgeThickness
+    }
+    
+    private var isNearBottom: Bool {
+        mouseLocation.y <= edgeThickness
+    }
+    
+    private var isNearLeft: Bool {
+        mouseLocation.x <= edgeThickness
+    }
+    
+    private var isNearRight: Bool {
+        mouseLocation.x >= size.width - edgeThickness
+    }
+    
+    var body: some View {
+        ZStack {
+            // Top edge indicator
+            if isNearTop {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.15),
+                                Color.white.opacity(0.05),
+                                Color.clear
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(height: edgeThickness)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+            
+            // Bottom edge indicator
+            if isNearBottom {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.15),
+                                Color.white.opacity(0.05),
+                                Color.clear
+                            ],
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
+                    )
+                    .frame(height: edgeThickness)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            }
+            
+            // Left edge indicator
+            if isNearLeft {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.15),
+                                Color.white.opacity(0.05),
+                                Color.clear
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: edgeThickness)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            }
+            
+            // Right edge indicator
+            if isNearRight {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.15),
+                                Color.white.opacity(0.05),
+                                Color.clear
+                            ],
+                            startPoint: .trailing,
+                            endPoint: .leading
+                        )
+                    )
+                    .frame(width: edgeThickness)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            }
+            
+            // Corner indicators (only show when near corners)
+            if isNearTop && isNearLeft {
+                cornerIndicator
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            
+            if isNearTop && isNearRight {
+                cornerIndicator
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            }
+            
+            if isNearBottom && isNearLeft {
+                cornerIndicator
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            }
+            
+            if isNearBottom && isNearRight {
+                cornerIndicator
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
+        }
+        .animation(.easeInOut(duration: 0.15), value: isNearTop)
+        .animation(.easeInOut(duration: 0.15), value: isNearBottom)
+        .animation(.easeInOut(duration: 0.15), value: isNearLeft)
+        .animation(.easeInOut(duration: 0.15), value: isNearRight)
+    }
+    
+    private var cornerIndicator: some View {
+        Circle()
+            .fill(Color.white.opacity(0.2))
+            .frame(width: 8, height: 8)
+            .padding(6)
     }
 }
 
