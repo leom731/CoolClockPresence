@@ -32,7 +32,8 @@ struct HelpView: View {
             iconColor: .purple,
             title: "Customization",
             items: [
-                HelpItem(question: "How do I change the clock color?", answer: "Click the menu bar icon and select 'Font Color' to choose from available colors. Free colors include White, Cyan, and Default. Premium unlocks 10+ additional colors."),
+                HelpItem(question: "How do I change the clock color?", answer: "Click the menu bar icon and select 'Font Color' to choose from available colors. Free colors include White and Green. Premium unlocks 10+ additional colors."),
+                HelpItem(question: "Can I change the font style?", answer: "Yes! Click the menu bar icon or right-click the clock and select 'Font Style'. Choose from 10 popular font styles including Rounded (default), Monospaced, Serif, and various weights like Ultra Light, Thin, Bold, Heavy, and Black."),
                 HelpItem(question: "Can I show battery level?", answer: "Yes! The 'Show Battery' feature is available with Premium. It displays your current battery level and charging status on the clock."),
                 HelpItem(question: "How do I keep the clock always on top?", answer: "Enable 'Always on Top' from the menu bar (Premium feature). This keeps the clock visible even when other windows are active.")
             ]

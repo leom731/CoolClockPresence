@@ -75,6 +75,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Set default preferences
         defaults.register(defaults: [
             "fontColorName": "green",
+            "fontDesign": "rounded",
             "clockPresence.alwaysOnTop": true,
             "disappearOnHover": true,
             "windowX": -1.0,  // -1 means not set yet, will center on first launch
@@ -183,6 +184,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let fontColorItem = NSMenuItem(title: "Font Color", action: nil, keyEquivalent: "")
         fontColorItem.submenu = fontColorMenu
         menu.addItem(fontColorItem)
+        
+        // Font Style submenu
+        let fontStyleMenu = NSMenu()
+        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Rounded (Default)", fontName: "rounded"))
+        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Monospaced", fontName: "monospaced"))
+        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Serif", fontName: "serif"))
+        fontStyleMenu.addItem(NSMenuItem.separator())
+        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Ultra Light", fontName: "ultralight"))
+        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Thin", fontName: "thin"))
+        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Light", fontName: "light"))
+        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Medium", fontName: "medium"))
+        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Bold", fontName: "bold"))
+        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Heavy", fontName: "heavy"))
+        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Black", fontName: "black"))
+        
+        let fontStyleItem = NSMenuItem(title: "Font Style", action: nil, keyEquivalent: "")
+        fontStyleItem.submenu = fontStyleMenu
+        menu.addItem(fontStyleItem)
         menu.addItem(NSMenuItem.separator())
 
         // Glass Style submenu
@@ -274,6 +293,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     @objc private func changeFontColor(_ sender: NSMenuItem) {
         if let colorName = sender.representedObject as? String {
             defaults.set(colorName, forKey: "fontColorName")
+            updateMenuBarMenu()
+        }
+    }
+
+    private func createFontStyleMenuItem(title: String, fontName: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: #selector(changeFontStyle(_:)), keyEquivalent: "")
+        item.representedObject = fontName
+
+        // Add checkmark if this is the current font
+        let currentFont = defaults.string(forKey: "fontDesign") ?? "rounded"
+        if currentFont == fontName {
+            item.state = .on
+        }
+
+        return item
+    }
+
+    @objc private func changeFontStyle(_ sender: NSMenuItem) {
+        if let fontName = sender.representedObject as? String {
+            defaults.set(fontName, forKey: "fontDesign")
             updateMenuBarMenu()
         }
     }

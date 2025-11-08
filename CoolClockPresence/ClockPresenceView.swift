@@ -26,6 +26,7 @@ struct ClockPresenceView: View {
     @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
     @AppStorage("glassStyle") private var glassStyle: String = "liquid"
     @AppStorage("windowPositionPreset") private var windowPositionPreset: String = ClockWindowPosition.topCenter.rawValue
+    @AppStorage("fontDesign") private var fontDesign: String = "rounded"
 
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
@@ -62,11 +63,61 @@ struct ClockPresenceView: View {
     }
 
     private func clockFont(for scale: CGFloat) -> Font {
-        .system(size: 38 * scale, weight: .semibold, design: .rounded)
+        let fontSize = 38 * scale
+        
+        switch fontDesign {
+        case "rounded":
+            return .system(size: fontSize, weight: .semibold, design: .rounded)
+        case "monospaced":
+            return .system(size: fontSize, weight: .semibold, design: .monospaced)
+        case "serif":
+            return .system(size: fontSize, weight: .semibold, design: .serif)
+        case "ultralight":
+            return .system(size: fontSize, weight: .ultraLight, design: .default)
+        case "thin":
+            return .system(size: fontSize, weight: .thin, design: .default)
+        case "light":
+            return .system(size: fontSize, weight: .light, design: .default)
+        case "medium":
+            return .system(size: fontSize, weight: .medium, design: .default)
+        case "bold":
+            return .system(size: fontSize, weight: .bold, design: .default)
+        case "heavy":
+            return .system(size: fontSize, weight: .heavy, design: .default)
+        case "black":
+            return .system(size: fontSize, weight: .black, design: .default)
+        default:
+            return .system(size: fontSize, weight: .semibold, design: .rounded)
+        }
     }
 
     private func batteryFont(for scale: CGFloat) -> Font {
-        .system(size: 19 * scale, weight: .medium, design: .rounded)
+        let fontSize = 19 * scale
+        
+        switch fontDesign {
+        case "rounded":
+            return .system(size: fontSize, weight: .medium, design: .rounded)
+        case "monospaced":
+            return .system(size: fontSize, weight: .medium, design: .monospaced)
+        case "serif":
+            return .system(size: fontSize, weight: .medium, design: .serif)
+        case "ultralight":
+            return .system(size: fontSize, weight: .ultraLight, design: .default)
+        case "thin":
+            return .system(size: fontSize, weight: .thin, design: .default)
+        case "light":
+            return .system(size: fontSize, weight: .light, design: .default)
+        case "medium":
+            return .system(size: fontSize, weight: .medium, design: .default)
+        case "bold":
+            return .system(size: fontSize, weight: .bold, design: .default)
+        case "heavy":
+            return .system(size: fontSize, weight: .heavy, design: .default)
+        case "black":
+            return .system(size: fontSize, weight: .black, design: .default)
+        default:
+            return .system(size: fontSize, weight: .medium, design: .rounded)
+        }
     }
 
     private func formattedTime(from date: Date) -> String {
@@ -179,6 +230,20 @@ struct ClockPresenceView: View {
                         fontColorButton(title: "Teal", colorName: "teal")
                         fontColorButton(title: "Indigo", colorName: "indigo")
                     }
+                }
+                
+                Menu("Font Style") {
+                    fontStyleButton(title: "Rounded (Default)", fontName: "rounded")
+                    fontStyleButton(title: "Monospaced", fontName: "monospaced")
+                    fontStyleButton(title: "Serif", fontName: "serif")
+                    Divider()
+                    fontStyleButton(title: "Ultra Light", fontName: "ultralight")
+                    fontStyleButton(title: "Thin", fontName: "thin")
+                    fontStyleButton(title: "Light", fontName: "light")
+                    fontStyleButton(title: "Medium", fontName: "medium")
+                    fontStyleButton(title: "Bold", fontName: "bold")
+                    fontStyleButton(title: "Heavy", fontName: "heavy")
+                    fontStyleButton(title: "Black", fontName: "black")
                 }
                 Divider()
 
@@ -293,6 +358,19 @@ struct ClockPresenceView: View {
             fontColorName = colorName
         } label: {
             if fontColorName == colorName {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fontStyleButton(title: String, fontName: String) -> some View {
+        Button {
+            fontDesign = fontName
+        } label: {
+            if fontDesign == fontName {
                 Label(title, systemImage: "checkmark")
             } else {
                 Text(title)
