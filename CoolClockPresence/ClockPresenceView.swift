@@ -145,13 +145,45 @@ struct ClockPresenceView: View {
         }
 
         let timeString = date.formatted(formatStyle)
-        
+
         // Replace colon with space when not visible (only if seconds not shown)
         if !colonVisible && !(showSeconds && purchaseManager.isPremium) {
             return timeString.replacingOccurrences(of: ":", with: " ")
         }
-        
+
         return timeString
+    }
+
+    private func timeComponents(from date: Date) -> (hours: String, separator: String, minutes: String, seconds: String?, ampm: String?) {
+        if use24HourFormat {
+            let calendar = Calendar.autoupdatingCurrent
+            let components = calendar.dateComponents([.hour, .minute, .second], from: date)
+            let hour = components.hour ?? 0
+            let minute = components.minute ?? 0
+
+            if showSeconds && purchaseManager.isPremium {
+                let second = components.second ?? 0
+                return (String(format: "%02d", hour), ":", String(format: "%02d", minute), String(format: "%02d", second), nil)
+            }
+
+            return (String(format: "%02d", hour), ":", String(format: "%02d", minute), nil, nil)
+        }
+
+        let calendar = Calendar.autoupdatingCurrent
+        let components = calendar.dateComponents([.hour, .minute, .second], from: date)
+        let hour = components.hour ?? 0
+        let minute = components.minute ?? 0
+
+        // Convert to 12-hour format
+        let displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
+        let ampm = hour >= 12 ? "PM" : "AM"
+
+        if showSeconds && purchaseManager.isPremium {
+            let second = components.second ?? 0
+            return (String(format: "%d", displayHour), ":", String(format: "%02d", minute), String(format: "%02d", second), ampm)
+        }
+
+        return (String(format: "%d", displayHour), ":", String(format: "%02d", minute), nil, ampm)
     }
 
     private func outlineColorForBackground() -> Color {
@@ -173,24 +205,96 @@ struct ClockPresenceView: View {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         // Calculate if colon should be visible (blink when seconds disabled)
                         let shouldShowSeconds = showSeconds && purchaseManager.isPremium
-                        let colonVisible = shouldShowSeconds || (Int(context.date.timeIntervalSince1970) % 2 == 0)
-                        
+                        let colonBright = shouldShowSeconds || (Int(context.date.timeIntervalSince1970) % 2 == 0)
+                        let colonOpacity = colonBright ? 0.92 : 0.25
+
                         if fontColorName == "black" {
-                            OutlinedText(
-                                text: formattedTime(from: context.date, colonVisible: colonVisible),
-                                font: clockFont(for: currentScale),
-                                fillColor: fontColor.opacity(0.92),
-                                strokeColor: strokeColor,
-                                lineWidth: max(0.5, 1.1 * currentScale)
-                            )
+                            HStack(spacing: 0) {
+                                OutlinedText(
+                                    text: timeComponents(from: context.date).hours,
+                                    font: clockFont(for: currentScale),
+                                    fillColor: fontColor.opacity(0.92),
+                                    strokeColor: strokeColor,
+                                    lineWidth: max(0.5, 1.1 * currentScale)
+                                )
+                                OutlinedText(
+                                    text: timeComponents(from: context.date).separator,
+                                    font: clockFont(for: currentScale),
+                                    fillColor: fontColor.opacity(colonOpacity),
+                                    strokeColor: strokeColor.opacity(colonOpacity / 0.92),
+                                    lineWidth: max(0.5, 1.1 * currentScale)
+                                )
+                                OutlinedText(
+                                    text: timeComponents(from: context.date).minutes,
+                                    font: clockFont(for: currentScale),
+                                    fillColor: fontColor.opacity(0.92),
+                                    strokeColor: strokeColor,
+                                    lineWidth: max(0.5, 1.1 * currentScale)
+                                )
+                                if let secondsPart = timeComponents(from: context.date).seconds {
+                                    OutlinedText(
+                                        text: ":",
+                                        font: clockFont(for: currentScale),
+                                        fillColor: fontColor.opacity(0.92),
+                                        strokeColor: strokeColor,
+                                        lineWidth: max(0.5, 1.1 * currentScale)
+                                    )
+                                    OutlinedText(
+                                        text: secondsPart,
+                                        font: clockFont(for: currentScale),
+                                        fillColor: fontColor.opacity(0.92),
+                                        strokeColor: strokeColor,
+                                        lineWidth: max(0.5, 1.1 * currentScale)
+                                    )
+                                }
+                                if let ampm = timeComponents(from: context.date).ampm {
+                                    OutlinedText(
+                                        text: " ",
+                                        font: clockFont(for: currentScale),
+                                        fillColor: fontColor.opacity(0.92),
+                                        strokeColor: strokeColor,
+                                        lineWidth: max(0.5, 1.1 * currentScale)
+                                    )
+                                    OutlinedText(
+                                        text: ampm,
+                                        font: .system(size: 20 * currentScale, weight: .medium, design: .rounded),
+                                        fillColor: fontColor.opacity(0.92),
+                                        strokeColor: strokeColor,
+                                        lineWidth: max(0.5, 1.1 * currentScale)
+                                    )
+                                }
+                            }
                             .minimumScaleFactor(0.5)
                             .lineLimit(1)
                         } else {
-                            Text(formattedTime(from: context.date, colonVisible: colonVisible))
-                                .font(clockFont(for: currentScale))
-                                .foregroundStyle(fontColor.opacity(0.92))
-                                .minimumScaleFactor(0.5)
-                                .lineLimit(1)
+                            HStack(spacing: 0) {
+                                Text(timeComponents(from: context.date).hours)
+                                    .font(clockFont(for: currentScale))
+                                    .foregroundStyle(fontColor.opacity(0.92))
+                                Text(timeComponents(from: context.date).separator)
+                                    .font(clockFont(for: currentScale))
+                                    .foregroundStyle(fontColor.opacity(colonOpacity))
+                                Text(timeComponents(from: context.date).minutes)
+                                    .font(clockFont(for: currentScale))
+                                    .foregroundStyle(fontColor.opacity(0.92))
+                                if let secondsPart = timeComponents(from: context.date).seconds {
+                                    Text(":")
+                                        .font(clockFont(for: currentScale))
+                                        .foregroundStyle(fontColor.opacity(0.92))
+                                    Text(secondsPart)
+                                        .font(clockFont(for: currentScale))
+                                        .foregroundStyle(fontColor.opacity(0.92))
+                                }
+                                if let ampm = timeComponents(from: context.date).ampm {
+                                    Text(" ")
+                                        .font(clockFont(for: currentScale))
+                                    Text(ampm)
+                                        .font(.system(size: 20 * currentScale, weight: .medium, design: .rounded))
+                                        .foregroundStyle(fontColor.opacity(0.92))
+                                }
+                            }
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
                         }
                     }
 
