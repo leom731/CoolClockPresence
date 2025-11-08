@@ -17,7 +17,7 @@ import IOKit.ps
 /// A compact glass-inspired clock that can float above other windows.
 struct ClockPresenceView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage("fontColorName") private var fontColorName: String = "green"
+    @AppStorage("fontColorName") private var fontColorName: String = "blue"
     @AppStorage("showBattery") private var showBattery: Bool = true
     @AppStorage("showSeconds") private var showSeconds: Bool = true
     @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
@@ -329,17 +329,17 @@ struct ClockPresenceView: View {
                 Menu("Font Color") {
                     // Free colors
                     fontColorButton(title: "White", colorName: "white")
-                    fontColorButton(title: "Green", colorName: "green")
+                    fontColorButton(title: "Blue", colorName: "blue")
 
                     // Premium colors
                     if purchaseManager.isPremium {
                         Divider()
                         fontColorButton(title: "Black", colorName: "black")
-                        fontColorButton(title: "Cyan", colorName: "cyan")
+                        fontColorButton(title: "Green", colorName: "green")
                         fontColorButton(title: "Red", colorName: "red")
                         fontColorButton(title: "Orange", colorName: "orange")
                         fontColorButton(title: "Yellow", colorName: "yellow")
-                        fontColorButton(title: "Blue", colorName: "blue")
+                        fontColorButton(title: "Cyan", colorName: "cyan")
                         fontColorButton(title: "Purple", colorName: "purple")
                         fontColorButton(title: "Pink", colorName: "pink")
                         fontColorButton(title: "Mint", colorName: "mint")
