@@ -10,9 +10,22 @@
 		501A96C72EB16A870015D91B /* CoolClockPresence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoolClockPresence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		508B1F3D2EC027D500D35DF5 /* Exceptions for "CoolClockPresence" folder in "CoolClockPresence" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 501A96C62EB16A870015D91B /* CoolClockPresence */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		501A96C92EB16A870015D91B /* CoolClockPresence */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				508B1F3D2EC027D500D35DF5 /* Exceptions for "CoolClockPresence" folder in "CoolClockPresence" target */,
+			);
 			path = CoolClockPresence;
 			sourceTree = "<group>";
 		};

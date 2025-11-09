@@ -66,7 +66,7 @@ struct ClockPresenceView: View {
 
     private func clockFont(for scale: CGFloat) -> Font {
         let fontSize = 38 * scale
-        
+
         switch fontDesign {
         case "rounded":
             return .system(size: fontSize, weight: .semibold, design: .rounded)
@@ -74,6 +74,12 @@ struct ClockPresenceView: View {
             return .system(size: fontSize, weight: .semibold, design: .monospaced)
         case "serif":
             return .system(size: fontSize, weight: .semibold, design: .serif)
+        case "led":
+            // Use DSEG7 Classic LED font for authentic 7-segment display look
+            return Font.custom("DSEG7Classic-Bold", size: fontSize)
+        case "pixel":
+            // Use Press Start 2P for authentic pixelated retro display look
+            return Font.custom("PressStart2P-Regular", size: fontSize)
         case "ultralight":
             return .system(size: fontSize, weight: .ultraLight, design: .default)
         case "thin":
@@ -95,7 +101,7 @@ struct ClockPresenceView: View {
 
     private func batteryFont(for scale: CGFloat) -> Font {
         let fontSize = 19 * scale
-        
+
         switch fontDesign {
         case "rounded":
             return .system(size: fontSize, weight: .medium, design: .rounded)
@@ -103,6 +109,12 @@ struct ClockPresenceView: View {
             return .system(size: fontSize, weight: .medium, design: .monospaced)
         case "serif":
             return .system(size: fontSize, weight: .medium, design: .serif)
+        case "led":
+            // Use DSEG7 Classic LED font for authentic 7-segment display look
+            return Font.custom("DSEG7Classic-Bold", size: fontSize)
+        case "pixel":
+            // Use Press Start 2P for authentic pixelated retro display look
+            return Font.custom("PressStart2P-Regular", size: fontSize)
         case "ultralight":
             return .system(size: fontSize, weight: .ultraLight, design: .default)
         case "thin":
@@ -346,6 +358,8 @@ struct ClockPresenceView: View {
                 Menu("Font Style") {
                     fontStyleButton(title: "Rounded (Default)", fontName: "rounded")
                     fontStyleButton(title: "Monospaced", fontName: "monospaced")
+                    fontStyleButton(title: "LED (7-Segment)", fontName: "led")
+                    fontStyleButton(title: "Pixel (Retro 1980s)", fontName: "pixel")
                     fontStyleButton(title: "Serif", fontName: "serif")
                     Divider()
                     fontStyleButton(title: "Ultra Light", fontName: "ultralight")
