@@ -77,9 +77,6 @@ struct ClockPresenceView: View {
         case "led":
             // Use DSEG7 Classic LED font for authentic 7-segment display look
             return Font.custom("DSEG7Classic-Bold", size: fontSize)
-        case "pixel":
-            // Use Press Start 2P for authentic pixelated retro display look
-            return Font.custom("PressStart2P-Regular", size: fontSize)
         case "ultralight":
             return .system(size: fontSize, weight: .ultraLight, design: .default)
         case "thin":
@@ -112,9 +109,6 @@ struct ClockPresenceView: View {
         case "led":
             // Use DSEG7 Classic LED font for authentic 7-segment display look
             return Font.custom("DSEG7Classic-Bold", size: fontSize)
-        case "pixel":
-            // Use Press Start 2P for authentic pixelated retro display look
-            return Font.custom("PressStart2P-Regular", size: fontSize)
         case "ultralight":
             return .system(size: fontSize, weight: .ultraLight, design: .default)
         case "thin":
@@ -358,17 +352,14 @@ struct ClockPresenceView: View {
                 Menu("Font Style") {
                     fontStyleButton(title: "Rounded (Default)", fontName: "rounded")
                     fontStyleButton(title: "Monospaced", fontName: "monospaced")
-                    fontStyleButton(title: "LED (7-Segment)", fontName: "led")
-                    fontStyleButton(title: "Pixel (Retro 1980s)", fontName: "pixel")
+                    fontStyleButton(title: "LED", fontName: "led")
                     fontStyleButton(title: "Serif", fontName: "serif")
-                    Divider()
                     fontStyleButton(title: "Ultra Light", fontName: "ultralight")
                     fontStyleButton(title: "Thin", fontName: "thin")
                     fontStyleButton(title: "Light", fontName: "light")
                     fontStyleButton(title: "Medium", fontName: "medium")
                     fontStyleButton(title: "Bold", fontName: "bold")
                     fontStyleButton(title: "Heavy", fontName: "heavy")
-                    fontStyleButton(title: "Black", fontName: "black")
                 }
                 Divider()
 
