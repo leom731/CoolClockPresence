@@ -553,21 +553,26 @@ private struct BlinkingColon: View {
     @State private var isVisible: Bool = true
 
     var body: some View {
+        // Render the text with constant colors to prevent position shifts
+        // Apply opacity to the entire view instead of to individual color components
         Group {
             if isOutlined {
                 OutlinedText(
                     text: text,
                     font: font,
-                    fillColor: fillColor.opacity(shouldBlink ? (isVisible ? 0.92 : 0.25) : 0.92),
-                    strokeColor: strokeColor.opacity(shouldBlink ? (isVisible ? 1.0 : 0.25 / 0.92) : 1.0),
+                    fillColor: fillColor.opacity(0.92),
+                    strokeColor: strokeColor,
                     lineWidth: lineWidth
                 )
             } else {
                 Text(text)
                     .font(font)
-                    .foregroundStyle(fillColor.opacity(shouldBlink ? (isVisible ? 0.92 : 0.25) : 0.92))
+                    .foregroundStyle(fillColor.opacity(0.92))
             }
         }
+        // Apply opacity animation to the entire rendered view
+        // This keeps the text rendering identical, preventing alignment shifts
+        .opacity(shouldBlink ? (isVisible ? 1.0 : 0.27) : 1.0)
         .onAppear {
             if shouldBlink {
                 // GPU-based animation that repeats without requiring view updates
