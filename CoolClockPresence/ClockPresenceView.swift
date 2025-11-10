@@ -136,7 +136,8 @@ struct ClockPresenceView: View {
             let hour = components.hour ?? 0
             let minute = components.minute ?? 0
 
-            if showSeconds && purchaseManager.isPremium {
+            // Don't show seconds in Low Power Mode to avoid showing stale/frozen time
+            if showSeconds && purchaseManager.isPremium && !lowPowerMode {
                 let second = components.second ?? 0
                 return String(format: "%02d:%02d:%02d", hour, minute, second)
             }
@@ -149,14 +150,15 @@ struct ClockPresenceView: View {
             .hour(.defaultDigits(amPM: .abbreviated))
             .minute()
 
-        if showSeconds && purchaseManager.isPremium {
+        // Don't show seconds in Low Power Mode to avoid showing stale/frozen time
+        if showSeconds && purchaseManager.isPremium && !lowPowerMode {
             formatStyle = formatStyle.second()
         }
 
         let timeString = date.formatted(formatStyle)
 
         // Replace colon with space when not visible (only if seconds not shown)
-        if !colonVisible && !(showSeconds && purchaseManager.isPremium) {
+        if !colonVisible && !(showSeconds && purchaseManager.isPremium && !lowPowerMode) {
             return timeString.replacingOccurrences(of: ":", with: " ")
         }
 
@@ -170,7 +172,8 @@ struct ClockPresenceView: View {
             let hour = components.hour ?? 0
             let minute = components.minute ?? 0
 
-            if showSeconds && purchaseManager.isPremium {
+            // Don't show seconds in Low Power Mode to avoid showing stale/frozen time
+            if showSeconds && purchaseManager.isPremium && !lowPowerMode {
                 let second = components.second ?? 0
                 return (String(format: "%02d", hour), ":", String(format: "%02d", minute), String(format: "%02d", second), nil)
             }
@@ -187,7 +190,8 @@ struct ClockPresenceView: View {
         let displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
         let ampm = hour >= 12 ? "PM" : "AM"
 
-        if showSeconds && purchaseManager.isPremium {
+        // Don't show seconds in Low Power Mode to avoid showing stale/frozen time
+        if showSeconds && purchaseManager.isPremium && !lowPowerMode {
             let second = components.second ?? 0
             return (String(format: "%d", displayHour), ":", String(format: "%02d", minute), String(format: "%02d", second), ampm)
         }
@@ -554,19 +558,32 @@ private struct BlinkingColon: View {
                 OutlinedText(
                     text: text,
                     font: font,
-                    fillColor: fillColor.opacity(isVisible ? 0.92 : 0.25),
-                    strokeColor: strokeColor.opacity(isVisible ? 1.0 : 0.25 / 0.92),
+                    fillColor: fillColor.opacity(shouldBlink ? (isVisible ? 0.92 : 0.25) : 0.92),
+                    strokeColor: strokeColor.opacity(shouldBlink ? (isVisible ? 1.0 : 0.25 / 0.92) : 1.0),
                     lineWidth: lineWidth
                 )
             } else {
                 Text(text)
                     .font(font)
-                    .foregroundStyle(fillColor.opacity(isVisible ? 0.92 : 0.25))
+                    .foregroundStyle(fillColor.opacity(shouldBlink ? (isVisible ? 0.92 : 0.25) : 0.92))
             }
         }
         .onAppear {
             if shouldBlink {
                 // GPU-based animation that repeats without requiring view updates
+                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                    isVisible = false
+                }
+            }
+        }
+        .onChange(of: shouldBlink) { _, newValue in
+            // Reset to visible when seconds are shown (shouldBlink becomes false)
+            if !newValue {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isVisible = true
+                }
+            } else {
+                // Start blinking animation when seconds are hidden
                 withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
                     isVisible = false
                 }
