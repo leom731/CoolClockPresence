@@ -27,6 +27,7 @@ struct ClockPresenceView: View {
     @AppStorage("glassStyle") private var glassStyle: String = "liquid"
     @AppStorage("windowPositionPreset") private var windowPositionPreset: String = ClockWindowPosition.topCenter.rawValue
     @AppStorage("fontDesign") private var fontDesign: String = "rounded"
+    @AppStorage("lowPowerMode") private var lowPowerMode: Bool = false
 
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
@@ -210,11 +211,11 @@ struct ClockPresenceView: View {
                 GlassBackdrop(style: glassStyle)
 
                 VStack(spacing: 2 * currentScale) {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                    // Battery optimization: Only update every second if seconds are shown, otherwise update every minute
+                    let updateInterval: TimeInterval = (showSeconds && purchaseManager.isPremium && !lowPowerMode) ? 1.0 : 60.0
+                    TimelineView(.periodic(from: .now, by: updateInterval)) { context in
                         // Calculate if colon should be visible (blink when seconds disabled)
-                        let shouldShowSeconds = showSeconds && purchaseManager.isPremium
-                        let colonBright = shouldShowSeconds || (Int(context.date.timeIntervalSince1970) % 2 == 0)
-                        let colonOpacity = colonBright ? 0.92 : 0.25
+                        let shouldShowSeconds = showSeconds && purchaseManager.isPremium && !lowPowerMode
 
                         if fontColorName == "black" {
                             HStack(spacing: 0) {
@@ -225,12 +226,14 @@ struct ClockPresenceView: View {
                                     strokeColor: strokeColor,
                                     lineWidth: max(0.5, 1.1 * currentScale)
                                 )
-                                OutlinedText(
+                                BlinkingColon(
                                     text: timeComponents(from: context.date).separator,
                                     font: clockFont(for: currentScale),
-                                    fillColor: fontColor.opacity(colonOpacity),
-                                    strokeColor: strokeColor.opacity(colonOpacity / 0.92),
-                                    lineWidth: max(0.5, 1.1 * currentScale)
+                                    fillColor: fontColor,
+                                    strokeColor: strokeColor,
+                                    lineWidth: max(0.5, 1.1 * currentScale),
+                                    shouldBlink: !shouldShowSeconds,
+                                    isOutlined: true
                                 )
                                 OutlinedText(
                                     text: timeComponents(from: context.date).minutes,
@@ -273,9 +276,15 @@ struct ClockPresenceView: View {
                                 Text(timeComponents(from: context.date).hours)
                                     .font(clockFont(for: currentScale))
                                     .foregroundStyle(fontColor.opacity(0.92))
-                                Text(timeComponents(from: context.date).separator)
-                                    .font(clockFont(for: currentScale))
-                                    .foregroundStyle(fontColor.opacity(colonOpacity))
+                                BlinkingColon(
+                                    text: timeComponents(from: context.date).separator,
+                                    font: clockFont(for: currentScale),
+                                    fillColor: fontColor,
+                                    strokeColor: .clear,
+                                    lineWidth: 0,
+                                    shouldBlink: !shouldShowSeconds,
+                                    isOutlined: false
+                                )
                                 Text(timeComponents(from: context.date).minutes)
                                     .font(clockFont(for: currentScale))
                                     .foregroundStyle(fontColor.opacity(0.92))
@@ -308,11 +317,11 @@ struct ClockPresenceView: View {
                                 scale: currentScale
                             )
 
-                            // Use TimelineView for flashing without state changes
-                            TimelineView(.periodic(from: .now, by: 0.5)) { context in
-                                // Only flash if battery is low AND not plugged in
-                                let shouldFlash = batteryMonitor.batteryLevel <= 25 && !batteryMonitor.isPluggedIn
-                                let isVisible = shouldFlash ? (Int(context.date.timeIntervalSince1970 * 2) % 2 == 0) : true
+                            // Battery optimization: Only update frequently when battery is low and needs to flash
+                            let shouldFlash = batteryMonitor.batteryLevel <= 25 && !batteryMonitor.isPluggedIn && !lowPowerMode
+                            let batteryUpdateInterval: TimeInterval = shouldFlash ? 1.0 : 60.0
+                            TimelineView(.periodic(from: .now, by: batteryUpdateInterval)) { context in
+                                let isVisible = shouldFlash ? (Int(context.date.timeIntervalSince1970) % 2 == 0) : true
 
                                 Text("\(batteryMonitor.batteryLevel)%")
                                     .font(batteryFont(for: currentScale))
@@ -429,6 +438,11 @@ struct ClockPresenceView: View {
 
                 Divider()
 
+                // Battery optimization - available to all users
+                Toggle("Low Power Mode", isOn: $lowPowerMode)
+
+                Divider()
+
                 // Upgrade option
                 if !purchaseManager.isPremium {
                     Button("⭐️ Upgrade to Premium ($1.99)") {
@@ -520,6 +534,47 @@ struct ClockPresenceView: View {
     }
 }
 
+// MARK: - Blinking Colon Helper
+
+/// Battery-efficient blinking colon that uses GPU animation instead of timeline updates
+private struct BlinkingColon: View {
+    let text: String
+    let font: Font
+    let fillColor: Color
+    let strokeColor: Color
+    let lineWidth: CGFloat
+    let shouldBlink: Bool
+    let isOutlined: Bool
+
+    @State private var isVisible: Bool = true
+
+    var body: some View {
+        Group {
+            if isOutlined {
+                OutlinedText(
+                    text: text,
+                    font: font,
+                    fillColor: fillColor.opacity(isVisible ? 0.92 : 0.25),
+                    strokeColor: strokeColor.opacity(isVisible ? 1.0 : 0.25 / 0.92),
+                    lineWidth: lineWidth
+                )
+            } else {
+                Text(text)
+                    .font(font)
+                    .foregroundStyle(fillColor.opacity(isVisible ? 0.92 : 0.25))
+            }
+        }
+        .onAppear {
+            if shouldBlink {
+                // GPU-based animation that repeats without requiring view updates
+                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                    isVisible = false
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Outlined Text Helper
 
 private struct OutlinedText: View {
@@ -529,28 +584,16 @@ private struct OutlinedText: View {
     let strokeColor: Color
     let lineWidth: CGFloat
 
-    private var outlineOffsets: [(CGFloat, CGFloat)] {
-        let step = lineWidth / 2
-        return [
-            (-step, -step), (0, -step), (step, -step),
-            (-step, 0),                 (step, 0),
-            (-step, step),  (0, step),  (step, step)
-        ]
-    }
-
     var body: some View {
-        ZStack {
-            ForEach(Array(outlineOffsets.enumerated()), id: \.offset) { item in
-                Text(text)
-                    .font(font)
-                    .foregroundColor(strokeColor)
-                    .offset(x: item.element.0, y: item.element.1)
-            }
-            Text(text)
-                .font(font)
-                .foregroundColor(fillColor)
-        }
-        .drawingGroup(opaque: false, colorMode: .extendedLinear)
+        // Battery optimization: Use shadows instead of 9 text copies for much better performance
+        // This reduces GPU/CPU load significantly while maintaining visual quality
+        Text(text)
+            .font(font)
+            .foregroundStyle(fillColor)
+            .shadow(color: strokeColor, radius: lineWidth * 0.4, x: 0, y: 0)
+            .shadow(color: strokeColor, radius: lineWidth * 0.4, x: 0, y: 0)
+            .shadow(color: strokeColor, radius: lineWidth * 0.3, x: lineWidth * 0.3, y: lineWidth * 0.3)
+            .shadow(color: strokeColor, radius: lineWidth * 0.3, x: -lineWidth * 0.3, y: -lineWidth * 0.3)
     }
 }
 
@@ -785,7 +828,7 @@ class BatteryMonitor: ObservableObject {
     @Published var isCharging: Bool = false
     @Published var isPluggedIn: Bool = false
 
-    private var timer: Timer?
+    private var runLoopSource: CFRunLoopSource?
 
     init() {
         updateBatteryInfo()
@@ -793,13 +836,25 @@ class BatteryMonitor: ObservableObject {
     }
 
     deinit {
-        timer?.invalidate()
+        if let source = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .defaultMode)
+        }
     }
 
     private func startMonitoring() {
-        // Update battery info every 30 seconds
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            self?.updateBatteryInfo()
+        // Battery optimization: Use event-based notifications instead of polling
+        // This way we only update when battery state actually changes, not every 30 seconds
+        let context = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+
+        let callback: IOPowerSourceCallbackType = { context in
+            guard let context = context else { return }
+            let monitor = Unmanaged<BatteryMonitor>.fromOpaque(context).takeUnretainedValue()
+            monitor.updateBatteryInfo()
+        }
+
+        runLoopSource = IOPSNotificationCreateRunLoopSource(callback, context).takeRetainedValue()
+        if let source = runLoopSource {
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .defaultMode)
         }
     }
 
@@ -885,7 +940,7 @@ private struct GlassBackdrop: View {
                         Color.pink.opacity(0.08)
                     ], startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
-                .blur(radius: 20)
+                .blur(radius: 12)  // Battery optimization: Reduced from 20 to 12 for better performance
 
             // Shimmer highlight layer
             RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -939,7 +994,7 @@ private struct GlassBackdrop: View {
                         Color.blue.opacity(0.02)
                     ], startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
-                .blur(radius: 30)
+                .blur(radius: 15)  // Battery optimization: Reduced from 30 to 15 for better performance
                 .opacity(0.1)
                 .padding(1.5)
         }
