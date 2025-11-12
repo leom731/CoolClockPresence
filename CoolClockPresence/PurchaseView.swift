@@ -93,7 +93,14 @@ struct PurchaseView: View {
                             await purchase()
                         }
                     }) {
-                        if isPurchasing {
+                        if purchaseManager.isLoading {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .frame(width: 16, height: 16)
+                                Text("Loading StoreKit...")
+                            }
+                        } else if isPurchasing {
                             HStack(spacing: 8) {
                                 ProgressView()
                                     .scaleEffect(0.8)
@@ -107,7 +114,7 @@ struct PurchaseView: View {
                         }
                     }
                     .buttonStyle(PrimaryPurchaseButtonStyle())
-                    .disabled(isPurchasing)
+                    .disabled(isPurchasing || purchaseManager.isLoading)
 
                     Button("Restore Purchases") {
                         Task {
@@ -115,7 +122,7 @@ struct PurchaseView: View {
                         }
                     }
                     .buttonStyle(SecondaryPurchaseButtonStyle())
-                    .disabled(isPurchasing)
+                    .disabled(isPurchasing || purchaseManager.isLoading)
                 }
 
                 // Close button

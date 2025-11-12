@@ -58,6 +58,10 @@ class PurchaseManager: ObservableObject {
     // MARK: - Purchase
 
     func purchase() async throws -> StoreKit.Transaction? {
+        if products.isEmpty {
+            await loadProducts()
+        }
+
         guard let product = products.first else {
             throw PurchaseError.productNotFound
         }
