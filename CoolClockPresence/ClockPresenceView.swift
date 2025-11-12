@@ -36,6 +36,7 @@ struct ClockPresenceView: View {
     @State private var showingPurchaseSheet = false
     @State private var mouseLocation: CGPoint = .zero
     @State private var showResizeHints: Bool = false
+    @State private var timelineRefresh: UUID = UUID()
 
     private var fontColor: Color {
         switch fontColorName {
@@ -217,7 +218,7 @@ struct ClockPresenceView: View {
                 VStack(spacing: 2 * currentScale) {
                     // Battery optimization: Only update every second if seconds are shown, otherwise update every minute
                     let updateInterval: TimeInterval = (showSeconds && purchaseManager.isPremium && !lowPowerMode) ? 1.0 : 60.0
-                    TimelineView(.periodic(from: .now, by: updateInterval)) { context in
+                    TimelineView(.periodic(from: Date(), by: updateInterval)) { context in
                         // Calculate if colon should be visible (blink when seconds disabled)
                         let shouldShowSeconds = showSeconds && purchaseManager.isPremium && !lowPowerMode
 
@@ -311,6 +312,7 @@ struct ClockPresenceView: View {
                             .lineLimit(1)
                         }
                     }
+                    .id(timelineRefresh)
 
                     // Battery Status (Premium Only)
                     if showBattery && purchaseManager.isPremium {
@@ -324,7 +326,7 @@ struct ClockPresenceView: View {
                             // Battery optimization: Only update frequently when battery is low and needs to flash
                             let shouldFlash = batteryMonitor.batteryLevel <= 25 && !batteryMonitor.isPluggedIn && !lowPowerMode
                             let batteryUpdateInterval: TimeInterval = shouldFlash ? 1.0 : 60.0
-                            TimelineView(.periodic(from: .now, by: batteryUpdateInterval)) { context in
+                            TimelineView(.periodic(from: Date(), by: batteryUpdateInterval)) { context in
                                 let isVisible = shouldFlash ? (Int(context.date.timeIntervalSince1970) % 2 == 0) : true
 
                                 Text("\(batteryMonitor.batteryLevel)%")
@@ -495,6 +497,17 @@ struct ClockPresenceView: View {
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
         .animation(.easeInOut(duration: 0.2), value: clockOpacity)
+        .onAppear {
+            // Observe system clock changes to keep the clock synced
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name.NSSystemClockDidChange,
+                object: nil,
+                queue: .main
+            ) { _ in
+                // Force TimelineView to recreate with updated system time
+                timelineRefresh = UUID()
+            }
+        }
     }
 
     @ViewBuilder
