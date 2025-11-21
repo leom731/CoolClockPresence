@@ -59,6 +59,21 @@ struct ClockPresenceView: View {
     }
 
     private let baseSize = CGSize(width: 240, height: 80)
+    private static let menuCheckmarkImage: NSImage = {
+        NSImage(named: NSImage.menuOnStateTemplateName) ?? NSImage(size: NSSize(width: 12, height: 12))
+    }()
+    private static let menuEmptyCheckmarkImage: NSImage = {
+        let image = NSImage(size: menuCheckmarkImage.size)
+        image.lockFocus()
+        NSColor.clear.set()
+        NSBezierPath(rect: NSRect(origin: .zero, size: menuCheckmarkImage.size)).fill()
+        image.unlockFocus()
+        image.isTemplate = true
+        return image
+    }()
+    private var checkmarkTemplate: NSImage { Self.menuCheckmarkImage }
+    private var emptyCheckmarkTemplate: NSImage { Self.menuEmptyCheckmarkImage }
+    private var checkmarkIconWidth: CGFloat { checkmarkTemplate.size.width }
 
     private func scale(for size: CGSize) -> CGFloat {
         let widthScale = size.width / baseSize.width
@@ -515,9 +530,10 @@ struct ClockPresenceView: View {
         Button {
             fontColorName = colorName
         } label: {
-            if fontColorName == colorName {
-                Label(title, systemImage: "checkmark")
-            } else {
+            let isSelected = fontColorName == colorName
+            HStack(spacing: 8) {
+                Image(nsImage: isSelected ? checkmarkTemplate : emptyCheckmarkTemplate)
+                    .frame(width: checkmarkIconWidth, alignment: .leading)
                 Text(title)
             }
         }

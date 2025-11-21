@@ -70,6 +70,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var statusItem: NSStatusItem?
     private var lastKnownWindowPresetValue: String?
     private var isApplyingPositionPreset = false
+    private let checkmarkImage = NSImage(named: NSImage.menuOnStateTemplateName) ?? NSImage(size: NSSize(width: 12, height: 12))
+    private lazy var emptyCheckmarkImage: NSImage = {
+        let image = NSImage(size: checkmarkImage.size)
+        image.lockFocus()
+        NSColor.clear.set()
+        NSBezierPath(rect: NSRect(origin: .zero, size: checkmarkImage.size)).fill()
+        image.unlockFocus()
+        image.isTemplate = true
+        return image
+    }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hide Dock icon; control surface lives in the menu bar status item
@@ -294,6 +304,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private func createFontColorMenuItem(title: String, colorName: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: #selector(changeFontColor(_:)), keyEquivalent: "")
         item.representedObject = colorName
+        item.onStateImage = checkmarkImage
+        item.offStateImage = emptyCheckmarkImage
+        item.mixedStateImage = emptyCheckmarkImage
 
         // Add checkmark if this is the current color
         let currentColor = defaults.string(forKey: "fontColorName") ?? "green"
