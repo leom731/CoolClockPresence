@@ -4,6 +4,8 @@
 <dict>
 	<key>ATSApplicationFontsPath</key>
 	<string>.</string>
+	<key>LSUIElement</key>
+	<true/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>DSEG7Classic-Bold.ttf</string>

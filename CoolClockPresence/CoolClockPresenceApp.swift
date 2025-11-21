@@ -72,6 +72,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var isApplyingPositionPreset = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Hide Dock icon; control surface lives in the menu bar status item
+        NSApp.setActivationPolicy(.accessory)
+
         // Set default preferences
         defaults.register(defaults: [
             "fontColorName": "green",
@@ -155,7 +158,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let isPremium = defaults.bool(forKey: "isPremiumUnlocked")
 
         // Show/Hide Clock Window
-        menu.addItem(NSMenuItem(title: "Show Clock Window", action: #selector(toggleClockWindow), keyEquivalent: ""))
+        let showClockItem = NSMenuItem(title: "Show Clock Window", action: #selector(toggleClockWindow), keyEquivalent: "")
+        if let window {
+            showClockItem.state = window.isVisible ? .on : .off
+        }
+        menu.addItem(showClockItem)
         menu.addItem(NSMenuItem.separator())
 
         // Font Color submenu
@@ -503,6 +510,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
+        updateMenuBarMenu()
     }
 
     @objc private func showAbout() {
@@ -557,8 +565,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     private func showOnboarding() {
-        // Show the app in the dock while onboarding
-        NSApp.setActivationPolicy(.regular)
+        // Keep app hidden from Dock/Cmd-Tab during onboarding
+        NSApp.setActivationPolicy(.accessory)
 
         // Create onboarding window
         let window = NSWindow(
@@ -691,8 +699,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             object: panel
         )
 
-        // Show app in dock and menu bar (required by App Store)
-        NSApp.setActivationPolicy(.regular)
+        // Keep app hidden from Dock/Cmd-Tab
+        NSApp.setActivationPolicy(.accessory)
 
         // Observe changes to the alwaysOnTop setting
         NotificationCenter.default.addObserver(
@@ -728,8 +736,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             return
         }
 
-        // Temporarily show app in dock
-        NSApp.setActivationPolicy(.regular)
+        // Keep app hidden from Dock/Cmd-Tab
+        NSApp.setActivationPolicy(.accessory)
 
         // Create onboarding window
         let window = NSWindow(
@@ -752,8 +760,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 if !isPresented {
                     self?.onboardingWindow?.close()
                     self?.onboardingWindow = nil
-                    // Keep app visible in dock and menu bar
-                    NSApp.setActivationPolicy(.regular)
+                    // Keep app hidden from Dock/Cmd-Tab after onboarding
+                    NSApp.setActivationPolicy(.accessory)
                 }
             }
         ))
