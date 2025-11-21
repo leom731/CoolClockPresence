@@ -79,6 +79,20 @@ struct ClockPresenceView: View {
     private var emptyCheckmarkTemplate: NSImage { Self.menuEmptyCheckmarkImage }
     private var checkmarkIconWidth: CGFloat { checkmarkTemplate.size.width }
 
+    private func performMenuAction(_ selector: Selector) {
+        let send = {
+            if !NSApp.sendAction(selector, to: NSApp.delegate, from: nil) {
+                NSApp.sendAction(selector, to: nil, from: nil)
+            }
+        }
+
+        if Thread.isMainThread {
+            send()
+        } else {
+            DispatchQueue.main.async(execute: send)
+        }
+    }
+
     private func scale(for size: CGSize) -> CGFloat {
         let widthScale = size.width / baseSize.width
         let heightScale = size.height / baseSize.height
@@ -359,15 +373,15 @@ struct ClockPresenceView: View {
                 .padding(.vertical, 6 * currentScale)
                 .padding(.horizontal, 10 * currentScale)
             }
-            .contentShape(Rectangle())
-            .contextMenu {
-                Button {
-                    appDelegate?.toggleClockWindow()
-                } label: {
-                    let isVisible = appDelegate?.window?.isVisible ?? false
-                    if isVisible {
-                        Label("Show Clock Window", systemImage: "checkmark")
-                    } else {
+                    .contentShape(Rectangle())
+                    .contextMenu {
+                        Button {
+                            performMenuAction(#selector(AppDelegate.toggleClockWindow))
+                        } label: {
+                            let isVisible = appDelegate?.window?.isVisible ?? false
+                            if isVisible {
+                                Label("Show Clock Window", systemImage: "checkmark")
+                            } else {
                         Text("Show Clock Window")
                     }
                 }
@@ -491,26 +505,26 @@ struct ClockPresenceView: View {
                 }
 
                 Button("Settings…") {
-                    appDelegate?.openSettingsWindow()
+                    performMenuAction(#selector(AppDelegate.openSettingsWindow))
                 }
 
                 Button("About CoolClockPresence") {
-                    appDelegate?.showAbout()
+                    performMenuAction(#selector(AppDelegate.showAbout))
                 }
 
                 Button("Help") {
-                    appDelegate?.showHelpWindow()
+                    performMenuAction(#selector(AppDelegate.showHelpWindow))
                 }
 
                 Divider()
 
                 Button("Show Onboarding Again") {
-                    NotificationCenter.default.post(name: NSNotification.Name("ShowOnboardingAgain"), object: nil)
+                    performMenuAction(#selector(AppDelegate.showOnboardingAgain))
                 }
                 Divider()
 
                 Button("Quit CoolClockPresence") {
-                    appDelegate?.quitApp()
+                    performMenuAction(#selector(AppDelegate.quitApp))
                 }
                 .keyboardShortcut("q", modifiers: .command)
             }

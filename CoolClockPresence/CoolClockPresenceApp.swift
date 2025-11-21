@@ -304,6 +304,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         menu.addItem(NSMenuItem(title: "Show Onboarding Again", action: #selector(showOnboardingAgain), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit CoolClockPresence", action: #selector(quitApp), keyEquivalent: "q"))
+
+        // Ensure every actionable item routes to this delegate, including submenu items.
+        assignMenuTargets(menu)
+    }
+
+    /// Recursively sets the AppDelegate as the target for any menu item that defines an action but no explicit target.
+    private func assignMenuTargets(_ menu: NSMenu) {
+        for item in menu.items {
+            if item.action != nil && item.target == nil {
+                item.target = self
+            }
+            if let submenu = item.submenu {
+                assignMenuTargets(submenu)
+            }
+        }
     }
 
     private func createFontColorMenuItem(title: String, colorName: String) -> NSMenuItem {
