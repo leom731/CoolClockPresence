@@ -66,6 +66,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     var window: NSPanel?
     var onboardingWindow: NSWindow?
     var helpWindow: NSWindow?
+    var settingsWindow: NSWindow?
     private let defaults = UserDefaults.standard
     private var statusItem: NSStatusItem?
     private var lastKnownWindowPresetValue: String?
@@ -292,6 +293,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             menu.addItem(NSMenuItem.separator())
         }
 
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettingsWindow), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
         // About and other options
         menu.addItem(NSMenuItem(title: "About CoolClockPresence", action: #selector(showAbout), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelpWindow), keyEquivalent: "?"))
@@ -515,7 +520,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func toggleClockWindow() {
+    @objc func toggleClockWindow() {
         guard let window = window else { return }
         if window.isVisible {
             window.orderOut(nil)
@@ -526,7 +531,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         updateMenuBarMenu()
     }
 
-    @objc private func showAbout() {
+    @objc func showAbout() {
         NSApp.orderFrontStandardAboutPanel(options: [
             NSApplication.AboutPanelOptionKey.applicationName: "CoolClockPresence",
             NSApplication.AboutPanelOptionKey.applicationVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -534,11 +539,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func quitApp() {
+    @objc func quitApp() {
         NSApplication.shared.terminate(nil)
     }
 
-    @objc private func showHelpWindow() {
+    @objc func openSettingsWindow() {
+        if let settingsWindow {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 440),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = "Settings"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.setFrameAutosaveName("SettingsWindow")
+        window.contentView = NSHostingView(rootView: SettingsView())
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: nil
+        ) { [weak self] _ in
+            self?.settingsWindow = nil
+        }
+
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow = window
+    }
+
+    @objc func showHelpWindow() {
         // If help window already exists, just bring it to front
         if let existingWindow = helpWindow {
             existingWindow.makeKeyAndOrderFront(nil)
@@ -741,7 +779,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         )
     }
 
-    @objc private func showOnboardingAgain() {
+    @objc func showOnboardingAgain() {
         // If onboarding window already exists, just bring it to front
         if let existingWindow = onboardingWindow {
             existingWindow.makeKeyAndOrderFront(nil)

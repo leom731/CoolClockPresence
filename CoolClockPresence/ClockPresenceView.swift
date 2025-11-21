@@ -38,6 +38,10 @@ struct ClockPresenceView: View {
     @State private var showResizeHints: Bool = false
     @State private var timelineRefresh: UUID = UUID()
 
+    private var appDelegate: AppDelegate? {
+        NSApplication.shared.delegate as? AppDelegate
+    }
+
     private var fontColor: Color {
         switch fontColorName {
         case "white": return .white
@@ -357,20 +361,33 @@ struct ClockPresenceView: View {
             }
             .contentShape(Rectangle())
             .contextMenu {
+                Button {
+                    appDelegate?.toggleClockWindow()
+                } label: {
+                    let isVisible = appDelegate?.window?.isVisible ?? false
+                    if isVisible {
+                        Label("Show Clock Window", systemImage: "checkmark")
+                    } else {
+                        Text("Show Clock Window")
+                    }
+                }
+
+                Divider()
+
                 Menu("Font Color") {
                     // Free colors
                     fontColorButton(title: "White", colorName: "white")
-                    fontColorButton(title: "Blue", colorName: "blue")
+                    fontColorButton(title: "Green", colorName: "green")
 
                     // Premium colors
                     if purchaseManager.isPremium {
                         Divider()
                         fontColorButton(title: "Black", colorName: "black")
-                        fontColorButton(title: "Green", colorName: "green")
+                        fontColorButton(title: "Cyan", colorName: "cyan")
                         fontColorButton(title: "Red", colorName: "red")
                         fontColorButton(title: "Orange", colorName: "orange")
                         fontColorButton(title: "Yellow", colorName: "yellow")
-                        fontColorButton(title: "Cyan", colorName: "cyan")
+                        fontColorButton(title: "Blue", colorName: "blue")
                         fontColorButton(title: "Purple", colorName: "purple")
                         fontColorButton(title: "Pink", colorName: "pink")
                         fontColorButton(title: "Mint", colorName: "mint")
@@ -382,14 +399,15 @@ struct ClockPresenceView: View {
                 Menu("Font Style") {
                     fontStyleButton(title: "Rounded (Default)", fontName: "rounded")
                     fontStyleButton(title: "Monospaced", fontName: "monospaced")
-                    fontStyleButton(title: "LED", fontName: "led")
                     fontStyleButton(title: "Serif", fontName: "serif")
+                    Divider()
                     fontStyleButton(title: "Ultra Light", fontName: "ultralight")
                     fontStyleButton(title: "Thin", fontName: "thin")
                     fontStyleButton(title: "Light", fontName: "light")
                     fontStyleButton(title: "Medium", fontName: "medium")
                     fontStyleButton(title: "Bold", fontName: "bold")
                     fontStyleButton(title: "Heavy", fontName: "heavy")
+                    fontStyleButton(title: "Black", fontName: "black")
                 }
                 Divider()
 
@@ -472,12 +490,27 @@ struct ClockPresenceView: View {
                     Divider()
                 }
 
+                Button("Settings…") {
+                    appDelegate?.openSettingsWindow()
+                }
+
+                Button("About CoolClockPresence") {
+                    appDelegate?.showAbout()
+                }
+
+                Button("Help") {
+                    appDelegate?.showHelpWindow()
+                }
+
+                Divider()
+
                 Button("Show Onboarding Again") {
                     NotificationCenter.default.post(name: NSNotification.Name("ShowOnboardingAgain"), object: nil)
                 }
                 Divider()
-                Button("Quit") {
-                    NSApplication.shared.terminate(nil)
+
+                Button("Quit CoolClockPresence") {
+                    appDelegate?.quitApp()
                 }
                 .keyboardShortcut("q", modifiers: .command)
             }
