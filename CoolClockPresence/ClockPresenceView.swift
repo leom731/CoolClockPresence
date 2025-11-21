@@ -53,9 +53,9 @@ struct ClockPresenceView: View {
         case "blue": return .blue
         case "purple": return .purple
         case "pink": return Color(red: 1.0, green: 0.75, blue: 0.8)
-        case "cyan": return .cyan
-        case "mint": return .mint
-        case "teal": return .teal
+        case "cyan": return Color(red: 0.00, green: 0.78, blue: 1.00)   // vivid cyan
+        case "mint": return Color(red: 0.16, green: 0.90, blue: 0.64)   // bright mint
+        case "teal": return Color(red: 0.00, green: 0.64, blue: 0.68)   // deeper teal
         case "indigo": return .indigo
         case "primary": return .primary
         default: return .green
