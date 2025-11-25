@@ -314,6 +314,7 @@ struct ClockPresenceView: View {
                             HStack(spacing: 0) {
                                 Text(timeComponents(from: context.date).hours)
                                     .font(clockFont(for: currentScale))
+                                    .monospacedDigit()
                                     .foregroundStyle(fontColor.opacity(0.92))
                                 BlinkingColon(
                                     text: timeComponents(from: context.date).separator,
@@ -326,13 +327,16 @@ struct ClockPresenceView: View {
                                 )
                                 Text(timeComponents(from: context.date).minutes)
                                     .font(clockFont(for: currentScale))
+                                    .monospacedDigit()
                                     .foregroundStyle(fontColor.opacity(0.92))
                                 if let secondsPart = timeComponents(from: context.date).seconds {
                                     Text(":")
                                         .font(clockFont(for: currentScale))
+                                        .monospacedDigit()
                                         .foregroundStyle(fontColor.opacity(0.92))
                                     Text(secondsPart)
                                         .font(clockFont(for: currentScale))
+                                        .monospacedDigit()
                                         .foregroundStyle(fontColor.opacity(0.92))
                                 }
                                 if let ampm = timeComponents(from: context.date).ampm {
@@ -617,6 +621,7 @@ private struct BlinkingColon: View {
             } else {
                 Text(text)
                     .font(font)
+                    .monospacedDigit()
                     .foregroundStyle(fillColor.opacity(0.92))
             }
         }
@@ -661,6 +666,7 @@ private struct OutlinedText: View {
         // This reduces GPU/CPU load significantly while maintaining visual quality
         Text(text)
             .font(font)
+            .monospacedDigit()
             .foregroundStyle(fillColor)
             .shadow(color: strokeColor, radius: lineWidth * 0.4, x: 0, y: 0)
             .shadow(color: strokeColor, radius: lineWidth * 0.4, x: 0, y: 0)
