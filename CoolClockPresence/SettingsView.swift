@@ -28,81 +28,85 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             // Appearance Tab
-            Form {
-                Section(header: Text("Font Color").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
-                    VStack(alignment: .center, spacing: 4) {
-                        // Free colors
-                        colorButton(title: "White", colorName: "white")
-                        colorButton(title: "Green", colorName: "green")
+            ScrollView {
+                Form {
+                    Section(header: Text("Font Color").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
+                        VStack(alignment: .center, spacing: 4) {
+                            // Free colors
+                            colorButton(title: "White", colorName: "white")
+                            colorButton(title: "Green", colorName: "green")
 
-                        // Premium colors
-                        if purchaseManager.isPremium {
-                            Divider()
-                            colorButton(title: "Black", colorName: "black")
-                            colorButton(title: "Cyan", colorName: "cyan")
-                            colorButton(title: "Red", colorName: "red")
-                            colorButton(title: "Orange", colorName: "orange")
-                            colorButton(title: "Yellow", colorName: "yellow")
-                            colorButton(title: "Blue", colorName: "blue")
-                            colorButton(title: "Purple", colorName: "purple")
-                            colorButton(title: "Pink", colorName: "pink")
-                            colorButton(title: "Mint", colorName: "mint")
-                            colorButton(title: "Teal", colorName: "teal")
-                            colorButton(title: "Indigo", colorName: "indigo")
-                                .padding(.bottom, 12)
-                        } else {
-                            Divider()
-                            Text("9 more colors available with Premium")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .center)
+                            // Premium colors
+                            if purchaseManager.isPremium {
+                                Divider()
+                                colorButton(title: "Black", colorName: "black")
+                                colorButton(title: "Cyan", colorName: "cyan")
+                                colorButton(title: "Red", colorName: "red")
+                                colorButton(title: "Orange", colorName: "orange")
+                                colorButton(title: "Yellow", colorName: "yellow")
+                                colorButton(title: "Blue", colorName: "blue")
+                                colorButton(title: "Purple", colorName: "purple")
+                                colorButton(title: "Pink", colorName: "pink")
+                                colorButton(title: "Mint", colorName: "mint")
+                                colorButton(title: "Teal", colorName: "teal")
+                                colorButton(title: "Indigo", colorName: "indigo")
+                                    .padding(.bottom, 12)
+                            } else {
+                                Divider()
+                                Text("9 more colors available with Premium")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    Section(header: Text("Glass Style").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
+                        VStack(alignment: .center, spacing: 6) {
+                            glassStyleButton(title: "Liquid Glass", styleName: "liquid")
+                            glassStyleButton(title: "Clear Glass", styleName: "clear")
+                            glassStyleButton(title: "Black Glass", styleName: "black")
+                            glassStyleButton(title: "Adjustable Black Glass", styleName: "adjustableBlack")
+
+                            if glassStyle == "adjustableBlack" {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text("Black Glass Opacity")
+                                        Spacer()
+                                        Text("\(Int(adjustableBlackOpacity * 100))%")
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Slider(value: $adjustableBlackOpacity, in: 0.4...1.0, step: 0.05)
+                                }
+                                .padding(.top, 6)
+                            }
                         }
                     }
-                    .frame(maxWidth: .infinity)
-                }
 
-                Section(header: Text("Glass Style").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
-                    VStack(alignment: .center, spacing: 6) {
-                        glassStyleButton(title: "Liquid Glass", styleName: "liquid")
-                        glassStyleButton(title: "Clear Glass", styleName: "clear")
-                        glassStyleButton(title: "Black Glass", styleName: "black")
-                        glassStyleButton(title: "Adjustable Black Glass", styleName: "adjustableBlack")
-
-                        if glassStyle == "adjustableBlack" {
-                            VStack(alignment: .leading, spacing: 6) {
+                    if purchaseManager.isPremium {
+                        Section(header: Text("Transparency").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 HStack {
-                                    Text("Black Glass Opacity")
+                                    Text("Opacity")
                                     Spacer()
-                                    Text("\(Int(adjustableBlackOpacity * 100))%")
+                                    Text("\(Int(clockOpacity * 100))%")
                                         .foregroundColor(.secondary)
                                 }
-                                Slider(value: $adjustableBlackOpacity, in: 0.4...1.0, step: 0.05)
+                                Slider(value: $clockOpacity, in: 0.3...1.0, step: 0.05)
                             }
-                            .padding(.top, 6)
+                        }
+                    } else {
+                        Section(header: Text("Transparency").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
+                            Button("Clock Opacity 🔒 Premium") {
+                                showingPurchaseSheet = true
+                            }
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
                     }
                 }
-
-                if purchaseManager.isPremium {
-                    Section(header: Text("Transparency").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("Opacity")
-                                Spacer()
-                                Text("\(Int(clockOpacity * 100))%")
-                                    .foregroundColor(.secondary)
-                            }
-                            Slider(value: $clockOpacity, in: 0.3...1.0, step: 0.05)
-                        }
-                    }
-                } else {
-                    Section(header: Text("Transparency").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
-                        Button("Clock Opacity 🔒 Premium") {
-                            showingPurchaseSheet = true
-                        }
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                }
+                .frame(maxWidth: .infinity, alignment: .top)
+                .padding(.vertical, 8)
             }
             .tabItem {
                 Label("Appearance", systemImage: "paintbrush.fill")
@@ -111,8 +115,6 @@ struct SettingsView: View {
             // Settings Tab (Combined Display & Behavior)
             ScrollView {
                 VStack {
-                    Spacer(minLength: 24)
-
                     HStack {
                         Spacer()
                         VStack(alignment: .leading, spacing: 16) {
@@ -160,8 +162,7 @@ struct SettingsView: View {
                         Spacer()
                     }
                     .padding(.horizontal)
-
-                    Spacer(minLength: 24)
+                    .padding(.vertical, 16)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
             }
@@ -200,7 +201,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .frame(width: 500, height: 400)
+        .frame(minWidth: 500, minHeight: 520)
         .sheet(isPresented: $showingPurchaseSheet) {
             PurchaseView()
         }
