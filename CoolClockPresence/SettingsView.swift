@@ -18,6 +18,8 @@ struct SettingsView: View {
     @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
     @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
     @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
+    @AppStorage("glassStyle") private var glassStyle: String = "liquid"
+    @AppStorage("adjustableBlackOpacity") private var adjustableBlackOpacity: Double = 0.82
 
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var showingPurchaseSheet = false
@@ -57,6 +59,28 @@ struct SettingsView: View {
                         }
                     }
                     .frame(maxWidth: .infinity)
+                }
+
+                Section(header: Text("Glass Style").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
+                    VStack(alignment: .center, spacing: 6) {
+                        glassStyleButton(title: "Liquid Glass", styleName: "liquid")
+                        glassStyleButton(title: "Clear Glass", styleName: "clear")
+                        glassStyleButton(title: "Black Glass", styleName: "black")
+                        glassStyleButton(title: "Adjustable Black Glass", styleName: "adjustableBlack")
+
+                        if glassStyle == "adjustableBlack" {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Black Glass Opacity")
+                                    Spacer()
+                                    Text("\(Int(adjustableBlackOpacity * 100))%")
+                                        .foregroundColor(.secondary)
+                                }
+                                Slider(value: $adjustableBlackOpacity, in: 0.4...1.0, step: 0.05)
+                            }
+                            .padding(.top, 6)
+                        }
+                    }
                 }
 
                 if purchaseManager.isPremium {
@@ -180,6 +204,28 @@ struct SettingsView: View {
         .sheet(isPresented: $showingPurchaseSheet) {
             PurchaseView()
         }
+    }
+
+    @ViewBuilder
+    private func glassStyleButton(title: String, styleName: String) -> some View {
+        Button(action: {
+            glassStyle = styleName
+        }) {
+            HStack {
+                Spacer()
+                Text(title)
+                if glassStyle == styleName {
+                    Image(systemName: "checkmark")
+                        .foregroundColor(.accentColor)
+                        .padding(.leading, 4)
+                }
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(.primary)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder

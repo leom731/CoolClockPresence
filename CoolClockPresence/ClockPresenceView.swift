@@ -25,6 +25,7 @@ struct ClockPresenceView: View {
     @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
     @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
     @AppStorage("glassStyle") private var glassStyle: String = "liquid"
+    @AppStorage("adjustableBlackOpacity") private var adjustableBlackOpacity: Double = 0.82
     @AppStorage("windowPositionPreset") private var windowPositionPreset: String = ClockWindowPosition.topCenter.rawValue
     @AppStorage("fontDesign") private var fontDesign: String = "rounded"
     @AppStorage("lowPowerMode") private var lowPowerMode: Bool = false
@@ -246,7 +247,7 @@ struct ClockPresenceView: View {
             let currentScale = scale(for: geometry.size)
             let strokeColor = outlineColorForBackground()
             ZStack {
-                GlassBackdrop(style: glassStyle)
+                GlassBackdrop(style: glassStyle, adjustableOpacity: adjustableBlackOpacity)
 
                 VStack(spacing: 2 * currentScale) {
                     // Battery optimization: Only update every second if seconds are shown, otherwise update every minute
@@ -425,35 +426,8 @@ struct ClockPresenceView: View {
                 }
                 Divider()
 
-                // Glass Style submenu
-                Menu("Glass Style") {
-                    Button {
-                        glassStyle = "liquid"
-                    } label: {
-                        if glassStyle == "liquid" {
-                            Label("Liquid Glass", systemImage: "checkmark")
-                        } else {
-                            Text("Liquid Glass")
-                        }
-                    }
-                    Button {
-                        glassStyle = "clear"
-                    } label: {
-                        if glassStyle == "clear" {
-                            Label("Clear Glass", systemImage: "checkmark")
-                        } else {
-                            Text("Clear Glass")
-                        }
-                    }
-                    Button {
-                        glassStyle = "black"
-                    } label: {
-                        if glassStyle == "black" {
-                            Label("Black Glass", systemImage: "checkmark")
-                        } else {
-                            Text("Black Glass")
-                        }
-                    }
+                Button("Glass Style…") {
+                    performMenuAction(#selector(AppDelegate.showGlassStyleMenuFromContextMenu))
                 }
                 Divider()
 
@@ -1005,14 +979,71 @@ class BatteryMonitor: ObservableObject {
     }
 }
 
+// MARK: - Menu Slider Control (AppKit-backed)
+
+/// AppKit slider for use inside context menus so dragging does not trigger the stepper overlay.
+private struct MenuSliderControl: NSViewRepresentable {
+    @Binding var value: Double
+    let minValue: Double
+    let maxValue: Double
+
+    func makeNSView(context: Context) -> NSSlider {
+        let slider = NSSlider(value: value, minValue: minValue, maxValue: maxValue, target: context.coordinator, action: #selector(Coordinator.changed(_:)))
+        slider.isContinuous = true
+        slider.numberOfTickMarks = 0
+        slider.controlSize = .small
+        slider.translatesAutoresizingMaskIntoConstraints = false
+        slider.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        return slider
+    }
+
+    func updateNSView(_ nsView: NSSlider, context: Context) {
+        let clamped = min(max(value, minValue), maxValue)
+        if nsView.doubleValue != clamped {
+            nsView.doubleValue = clamped
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(value: $value, minValue: minValue, maxValue: maxValue)
+    }
+
+    final class Coordinator: NSObject {
+        @Binding var value: Double
+        let minValue: Double
+        let maxValue: Double
+
+        init(value: Binding<Double>, minValue: Double, maxValue: Double) {
+            self._value = value
+            self.minValue = minValue
+            self.maxValue = maxValue
+        }
+
+        @objc func changed(_ sender: NSSlider) {
+            let clamped = min(max(sender.doubleValue, minValue), maxValue)
+            if clamped != sender.doubleValue {
+                sender.doubleValue = clamped
+            }
+            value = clamped
+        }
+    }
+}
+
 // MARK: - Glass Backdrop
 
 private struct GlassBackdrop: View {
     let style: String
+    let adjustableOpacity: Double
+
+    private var clampedAdjustableOpacity: Double {
+        min(max(adjustableOpacity, 0.4), 1.0)
+    }
 
     var body: some View {
         if style == "liquid" {
             liquidGlassStyle
+        } else if style == "adjustableBlack" {
+            adjustableBlackGlassStyle
         } else if style == "black" {
             blackGlassStyle
         } else {
@@ -1128,6 +1159,57 @@ private struct GlassBackdrop: View {
                 .padding(2)
         }
         .shadow(color: Color.black.opacity(0.5), radius: 30, x: 0, y: 15)
+    }
+
+    // Adjustable Black Glass - user controlled transparency to tune visibility
+    private var adjustableBlackGlassStyle: some View {
+        let baseOpacity = clampedAdjustableOpacity
+        let edgeHighlight = 0.12 + (1.0 - baseOpacity) * 0.2
+        let overlayOpacity = 0.14 + (1.0 - baseOpacity) * 0.2
+        let innerGlowOpacity = 0.03 + (1.0 - baseOpacity) * 0.07
+
+        return ZStack {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(
+                    LinearGradient(colors: [
+                        Color.black.opacity(baseOpacity),
+                        Color.black.opacity(max(0.35, baseOpacity * 0.8))
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+
+            // Edge highlight adapts with opacity so definition remains clear
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(colors: [
+                        Color.white.opacity(edgeHighlight),
+                        Color.white.opacity(edgeHighlight * 0.5),
+                        Color.clear
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 1.25
+                )
+
+            RoundedRectangle(cornerRadius: 23, style: .continuous)
+                .fill(
+                    LinearGradient(colors: [
+                        Color.white.opacity(overlayOpacity),
+                        Color.white.opacity(overlayOpacity * 0.25)
+                    ], startPoint: .top, endPoint: .bottom)
+                )
+                .opacity(0.2)
+                .blur(radius: 12)
+                .padding(1)
+
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(
+                    RadialGradient(colors: [
+                        Color.white.opacity(innerGlowOpacity),
+                        Color.clear
+                    ], center: .topLeading, startRadius: 0, endRadius: 280)
+                )
+                .padding(2)
+        }
+        .shadow(color: Color.black.opacity(0.3 + baseOpacity * 0.15), radius: 24, x: 0, y: 12)
+        .shadow(color: Color.black.opacity(0.18 + baseOpacity * 0.08), radius: 10, x: 0, y: 4)
     }
 }
 

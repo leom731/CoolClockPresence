@@ -71,6 +71,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var statusItem: NSStatusItem?
     private var lastKnownWindowPresetValue: String?
     private var isApplyingPositionPreset = false
+    private var isAdjustingBlackOpacity = false
+    private var adjustableOpacityUpdateWorkItem: DispatchWorkItem?
     private let checkmarkImage = NSImage(named: NSImage.menuOnStateTemplateName) ?? NSImage(size: NSSize(width: 12, height: 12))
     private lazy var emptyCheckmarkImage: NSImage = {
         let image = NSImage(size: checkmarkImage.size)
@@ -98,6 +100,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             "windowHeight": 100.0,
             "hasCompletedOnboarding": false,
             "glassStyle": "liquid",
+            "adjustableBlackOpacity": 0.82,
             "windowPositionPreset": ClockWindowPosition.topCenter.rawValue
         ])
         lastKnownWindowPresetValue = defaults.string(forKey: "windowPositionPreset") ?? ClockWindowPosition.topCenter.rawValue
@@ -149,7 +152,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Observe premium status changes to rebuild menu
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(updateMenuBarMenu),
+            selector: #selector(handleDefaultsChange),
             name: UserDefaults.didChangeNotification,
             object: nil
         )
@@ -159,6 +162,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     func menuWillOpen(_ menu: NSMenu) {
         // Rebuild menu when it's about to open, so we can check modifier flags
+        updateMenuBarMenu()
+    }
+
+    @objc private func handleDefaultsChange() {
+        if isAdjustingBlackOpacity { return }
         updateMenuBarMenu()
     }
 
@@ -223,13 +231,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         menu.addItem(NSMenuItem.separator())
 
         // Glass Style submenu
-        let glassStyleMenu = NSMenu()
-        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Liquid Glass", styleName: "liquid"))
-        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Clear Glass", styleName: "clear"))
-        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Black Glass", styleName: "black"))
-
         let glassStyleItem = NSMenuItem(title: "Glass Style", action: nil, keyEquivalent: "")
-        glassStyleItem.submenu = glassStyleMenu
+        glassStyleItem.submenu = makeGlassStyleMenu()
         menu.addItem(glassStyleItem)
         menu.addItem(NSMenuItem.separator())
 
@@ -382,6 +385,96 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             defaults.set(styleName, forKey: "glassStyle")
             updateMenuBarMenu()
         }
+    }
+
+    private func adjustableBlackOpacityMenuItem() -> NSMenuItem {
+        let item = NSMenuItem()
+        item.isEnabled = true
+        let currentStyle = defaults.string(forKey: "glassStyle") ?? "liquid"
+        let isAdjustableSelected = currentStyle == "adjustableBlack"
+
+        let container = NSStackView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.orientation = .vertical
+        container.spacing = 6
+        container.edgeInsets = NSEdgeInsets(top: 6, left: 12, bottom: 8, right: 12)
+        container.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        container.heightAnchor.constraint(greaterThanOrEqualToConstant: 52).isActive = true
+
+        let header = NSStackView()
+        header.orientation = .horizontal
+        header.alignment = .centerY
+        header.distribution = .fillProportionally
+
+        let titleLabel = NSTextField(labelWithString: "Black Glass Opacity")
+        titleLabel.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        titleLabel.textColor = isAdjustableSelected ? NSColor.labelColor : NSColor.secondaryLabelColor
+
+        let value = defaults.double(forKey: "adjustableBlackOpacity")
+        let valueLabel = NSTextField(labelWithString: "\(Int(value * 100))%")
+        valueLabel.font = NSFont.systemFont(ofSize: 11)
+        valueLabel.textColor = isAdjustableSelected ? NSColor.secondaryLabelColor : NSColor.tertiaryLabelColor
+        valueLabel.alignment = .right
+
+        header.addArrangedSubview(titleLabel)
+        header.addArrangedSubview(valueLabel)
+
+        let slider = NSSlider(value: value, minValue: 0.4, maxValue: 1.0, target: self, action: #selector(changeAdjustableBlackOpacity(_:)))
+        slider.isContinuous = true
+        slider.numberOfTickMarks = 0
+        slider.controlSize = .small
+        slider.translatesAutoresizingMaskIntoConstraints = false
+        slider.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        slider.isEnabled = isAdjustableSelected
+
+        container.addArrangedSubview(header)
+        container.addArrangedSubview(slider)
+
+        item.view = container
+        return item
+    }
+
+    @objc private func changeAdjustableBlackOpacity(_ sender: NSSlider) {
+        isAdjustingBlackOpacity = true
+        adjustableOpacityUpdateWorkItem?.cancel()
+
+        let clampedValue = max(0.4, min(1.0, sender.doubleValue))
+        defaults.set(clampedValue, forKey: "adjustableBlackOpacity")
+        sender.doubleValue = clampedValue
+
+        if let container = sender.superview as? NSStackView,
+           let header = container.arrangedSubviews.first as? NSStackView,
+           let valueLabel = header.arrangedSubviews.last as? NSTextField {
+            valueLabel.stringValue = "\(Int(clampedValue * 100))%"
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.isAdjustingBlackOpacity = false
+            self.updateMenuBarMenu()
+        }
+        adjustableOpacityUpdateWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: workItem)
+    }
+
+    /// Shared Glass Style submenu used by both the status item menu and the clock context menu.
+    func makeGlassStyleMenu() -> NSMenu {
+        let glassStyleMenu = NSMenu()
+        glassStyleMenu.autoenablesItems = false
+        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Liquid Glass", styleName: "liquid"))
+        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Clear Glass", styleName: "clear"))
+        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Black Glass", styleName: "black"))
+        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Adjustable Black Glass", styleName: "adjustableBlack"))
+        glassStyleMenu.addItem(NSMenuItem.separator())
+        glassStyleMenu.addItem(adjustableBlackOpacityMenuItem())
+        return glassStyleMenu
+    }
+
+    /// Presents the Glass Style submenu at the current mouse location (used for the clock's context menu).
+    @objc func showGlassStyleMenuFromContextMenu() {
+        let menu = makeGlassStyleMenu()
+        let location = NSEvent.mouseLocation
+        menu.popUp(positioning: nil, at: location, in: nil)
     }
 
     @objc private func snapWindowToPreset(_ sender: NSMenuItem) {
