@@ -316,13 +316,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         menu.addItem(NSMenuItem.separator())
 
-        // Battery optimization - available to all users
-        let lowPowerModeItem = NSMenuItem(title: "Low Power Mode", action: #selector(toggleLowPowerMode), keyEquivalent: "")
-        lowPowerModeItem.state = defaults.bool(forKey: "lowPowerMode") ? .on : .off
-        menu.addItem(lowPowerModeItem)
-
-        menu.addItem(NSMenuItem.separator())
-
         // Upgrade option
         if !isPremium {
             menu.addItem(NSMenuItem(title: "⭐️ Upgrade to Premium ($1.99)", action: #selector(showPurchaseView), keyEquivalent: ""))
@@ -631,12 +624,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     @objc private func toggleDisappearOnHover() {
         let current = defaults.bool(forKey: "disappearOnHover")
         defaults.set(!current, forKey: "disappearOnHover")
-        updateMenuBarMenu()
-    }
-
-    @objc private func toggleLowPowerMode() {
-        let current = defaults.bool(forKey: "lowPowerMode")
-        defaults.set(!current, forKey: "lowPowerMode")
         updateMenuBarMenu()
     }
 

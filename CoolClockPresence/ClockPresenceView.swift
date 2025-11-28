@@ -28,7 +28,6 @@ struct ClockPresenceView: View {
     @AppStorage("adjustableBlackOpacity") private var adjustableBlackOpacity: Double = 0.82
     @AppStorage("windowPositionPreset") private var windowPositionPreset: String = ClockWindowPosition.topCenter.rawValue
     @AppStorage("fontDesign") private var fontDesign: String = "rounded"
-    @AppStorage("lowPowerMode") private var lowPowerMode: Bool = false
 
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
@@ -171,8 +170,7 @@ struct ClockPresenceView: View {
             let hour = components.hour ?? 0
             let minute = components.minute ?? 0
 
-            // Don't show seconds in Low Power Mode to avoid showing stale/frozen time
-            if showSeconds && purchaseManager.isPremium && !lowPowerMode {
+            if showSeconds && purchaseManager.isPremium {
                 let second = components.second ?? 0
                 return String(format: "%02d:%02d:%02d", hour, minute, second)
             }
@@ -185,15 +183,14 @@ struct ClockPresenceView: View {
             .hour(.defaultDigits(amPM: .abbreviated))
             .minute()
 
-        // Don't show seconds in Low Power Mode to avoid showing stale/frozen time
-        if showSeconds && purchaseManager.isPremium && !lowPowerMode {
+        if showSeconds && purchaseManager.isPremium {
             formatStyle = formatStyle.second()
         }
 
         let timeString = date.formatted(formatStyle)
 
         // Replace colon with space when not visible (only if seconds not shown)
-        if !colonVisible && !(showSeconds && purchaseManager.isPremium && !lowPowerMode) {
+        if !colonVisible && !(showSeconds && purchaseManager.isPremium) {
             return timeString.replacingOccurrences(of: ":", with: " ")
         }
 
@@ -207,8 +204,7 @@ struct ClockPresenceView: View {
             let hour = components.hour ?? 0
             let minute = components.minute ?? 0
 
-            // Don't show seconds in Low Power Mode to avoid showing stale/frozen time
-            if showSeconds && purchaseManager.isPremium && !lowPowerMode {
+            if showSeconds && purchaseManager.isPremium {
                 let second = components.second ?? 0
                 return (String(format: "%02d", hour), ":", String(format: "%02d", minute), String(format: "%02d", second), nil)
             }
@@ -225,8 +221,7 @@ struct ClockPresenceView: View {
         let displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
         let ampm = hour >= 12 ? "PM" : "AM"
 
-        // Don't show seconds in Low Power Mode to avoid showing stale/frozen time
-        if showSeconds && purchaseManager.isPremium && !lowPowerMode {
+        if showSeconds && purchaseManager.isPremium {
             let second = components.second ?? 0
             return (String(format: "%d", displayHour), ":", String(format: "%02d", minute), String(format: "%02d", second), ampm)
         }
@@ -251,10 +246,10 @@ struct ClockPresenceView: View {
 
                 VStack(spacing: 2 * currentScale) {
                     // Battery optimization: Only update every second if seconds are shown, otherwise update every minute
-                    let updateInterval: TimeInterval = (showSeconds && purchaseManager.isPremium && !lowPowerMode) ? 1.0 : 60.0
+                    let updateInterval: TimeInterval = (showSeconds && purchaseManager.isPremium) ? 1.0 : 60.0
                     TimelineView(.periodic(from: Date(), by: updateInterval)) { context in
                         // Calculate if colon should be visible (blink when seconds disabled)
-                        let shouldShowSeconds = showSeconds && purchaseManager.isPremium && !lowPowerMode
+                        let shouldShowSeconds = showSeconds && purchaseManager.isPremium
 
                         if fontColorName == "black" {
                             HStack(spacing: 0) {
@@ -362,7 +357,7 @@ struct ClockPresenceView: View {
                             )
 
                             // Battery optimization: Only update frequently when battery is low and needs to flash
-                            let shouldFlash = batteryMonitor.batteryLevel <= 25 && !batteryMonitor.isPluggedIn && !lowPowerMode
+                            let shouldFlash = batteryMonitor.batteryLevel <= 25 && !batteryMonitor.isPluggedIn
                             let batteryUpdateInterval: TimeInterval = shouldFlash ? 1.0 : 60.0
                             TimelineView(.periodic(from: Date(), by: batteryUpdateInterval)) { context in
                                 let isVisible = shouldFlash ? (Int(context.date.timeIntervalSince1970) % 2 == 0) : true
@@ -466,11 +461,6 @@ struct ClockPresenceView: View {
                         showingPurchaseSheet = true
                     }
                 }
-
-                Divider()
-
-                // Battery optimization - available to all users
-                Toggle("Low Power Mode", isOn: $lowPowerMode)
 
                 Divider()
 
