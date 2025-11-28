@@ -70,6 +70,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var lastKnownWindowPresetValue: String?
     private var isApplyingPositionPreset = false
     private var isAdjustingBlackOpacity = false
+    private var isUpdatingGlassStyleInline = false
+    private var isBuildingMenu = false
     private var adjustableOpacityUpdateWorkItem: DispatchWorkItem?
     private let checkmarkImage = NSImage(named: NSImage.menuOnStateTemplateName) ?? NSImage(size: NSSize(width: 12, height: 12))
     private var appStoreProductID: String? {
@@ -199,143 +201,158 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     @objc private func handleDefaultsChange() {
-        if isAdjustingBlackOpacity { return }
-        updateMenuBarMenu()
+        if isAdjustingBlackOpacity || isUpdatingGlassStyleInline || isBuildingMenu { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.updateMenuBarMenu()
+        }
     }
 
     @objc private func updateMenuBarMenu() {
-        guard let menu = statusItem?.menu else { return }
-        menu.removeAllItems()
+        let rebuild = { [weak self] in
+            guard let self else { return }
+            if self.isBuildingMenu { return }
+            self.isBuildingMenu = true
+            defer { self.isBuildingMenu = false }
 
-        let isPremium = defaults.bool(forKey: "isPremiumUnlocked")
+            guard let menu = self.statusItem?.menu else { return }
+            menu.removeAllItems()
 
-        // Show/Hide Clock Window
-        let showClockItem = NSMenuItem(title: "Show Clock Window", action: #selector(toggleClockWindow), keyEquivalent: "")
-        if let window {
-            showClockItem.state = window.isVisible ? .on : .off
-        }
-        menu.addItem(showClockItem)
-        menu.addItem(NSMenuItem.separator())
+            let isPremium = self.defaults.bool(forKey: "isPremiumUnlocked")
 
-        // Font Color submenu
-        let fontColorMenu = NSMenu()
-
-        // Free colors
-        fontColorMenu.addItem(createFontColorMenuItem(title: "White", colorName: "white"))
-        fontColorMenu.addItem(createFontColorMenuItem(title: "Green", colorName: "green"))
-
-        // Premium colors
-        if isPremium {
-            fontColorMenu.addItem(NSMenuItem.separator())
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Black", colorName: "black"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Cyan", colorName: "cyan"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Red", colorName: "red"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Orange", colorName: "orange"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Yellow", colorName: "yellow"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Blue", colorName: "blue"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Purple", colorName: "purple"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Pink", colorName: "pink"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Mint", colorName: "mint"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Teal", colorName: "teal"))
-            fontColorMenu.addItem(createFontColorMenuItem(title: "Indigo", colorName: "indigo"))
-        }
-
-        let fontColorItem = NSMenuItem(title: "Font Color", action: nil, keyEquivalent: "")
-        fontColorItem.submenu = fontColorMenu
-        menu.addItem(fontColorItem)
-        
-        // Font Style submenu
-        let fontStyleMenu = NSMenu()
-        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Rounded (Default)", fontName: "rounded"))
-        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Monospaced", fontName: "monospaced"))
-        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Serif", fontName: "serif"))
-        fontStyleMenu.addItem(NSMenuItem.separator())
-        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Ultra Light", fontName: "ultralight"))
-        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Thin", fontName: "thin"))
-        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Light", fontName: "light"))
-        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Medium", fontName: "medium"))
-        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Bold", fontName: "bold"))
-        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Heavy", fontName: "heavy"))
-        fontStyleMenu.addItem(createFontStyleMenuItem(title: "Black", fontName: "black"))
-        
-        let fontStyleItem = NSMenuItem(title: "Font Style", action: nil, keyEquivalent: "")
-        fontStyleItem.submenu = fontStyleMenu
-        menu.addItem(fontStyleItem)
-        menu.addItem(NSMenuItem.separator())
-
-        // Glass Style submenu
-        let glassStyleItem = NSMenuItem(title: "Glass Style", action: nil, keyEquivalent: "")
-        glassStyleItem.submenu = makeGlassStyleMenu()
-        menu.addItem(glassStyleItem)
-        menu.addItem(NSMenuItem.separator())
-
-        // Clock position submenu
-        let positionMenu = NSMenu()
-        let currentPreset = defaults.string(forKey: "windowPositionPreset") ?? ClockWindowPosition.topCenter.rawValue
-        ClockWindowPosition.allCases.forEach { position in
-            let item = NSMenuItem(title: position.displayName, action: #selector(snapWindowToPreset(_:)), keyEquivalent: "")
-            item.representedObject = position.rawValue
-            item.state = currentPreset == position.rawValue ? .on : .off
-            item.target = self
-            positionMenu.addItem(item)
-        }
-
-        let positionItem = NSMenuItem(title: "Clock Position", action: nil, keyEquivalent: "")
-        positionItem.submenu = positionMenu
-        menu.addItem(positionItem)
-        menu.addItem(NSMenuItem.separator())
-
-        // Premium features
-        if isPremium {
-            let showSecondsItem = NSMenuItem(title: "Show Seconds", action: #selector(toggleSeconds), keyEquivalent: "")
-            showSecondsItem.state = defaults.bool(forKey: "showSeconds") ? .on : .off
-            menu.addItem(showSecondsItem)
-
-            let use24HourItem = NSMenuItem(title: "Use 24-Hour Format", action: #selector(toggleUse24HourFormat), keyEquivalent: "")
-            use24HourItem.state = defaults.bool(forKey: "use24HourFormat") ? .on : .off
-            menu.addItem(use24HourItem)
-
-            let showBatteryItem = NSMenuItem(title: "Show Battery", action: #selector(toggleBattery), keyEquivalent: "")
-            showBatteryItem.state = defaults.bool(forKey: "showBattery") ? .on : .off
-            menu.addItem(showBatteryItem)
-
-            let alwaysOnTopItem = NSMenuItem(title: "Always on Top", action: #selector(toggleAlwaysOnTop), keyEquivalent: "")
-            alwaysOnTopItem.state = defaults.bool(forKey: "clockPresence.alwaysOnTop") ? .on : .off
-            menu.addItem(alwaysOnTopItem)
-
-            let disappearOnHoverItem = NSMenuItem(title: "Disappear on Hover", action: #selector(toggleDisappearOnHover), keyEquivalent: "")
-            disappearOnHoverItem.state = defaults.bool(forKey: "disappearOnHover") ? .on : .off
-            menu.addItem(disappearOnHoverItem)
-        } else {
-            menu.addItem(NSMenuItem(title: "Show Seconds 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
-            menu.addItem(NSMenuItem(title: "Use 24-Hour Format 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
-            menu.addItem(NSMenuItem(title: "Show Battery 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
-            menu.addItem(NSMenuItem(title: "Always on Top 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
-            menu.addItem(NSMenuItem(title: "Disappear on Hover 🔒 Premium", action: #selector(showPurchaseView), keyEquivalent: ""))
-        }
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Upgrade option
-        if !isPremium {
-            menu.addItem(NSMenuItem(title: "⭐️ Upgrade to Premium ($1.99)", action: #selector(showPurchaseView), keyEquivalent: ""))
+            // Show/Hide Clock Window
+            let showClockItem = NSMenuItem(title: "Show Clock Window", action: #selector(self.toggleClockWindow), keyEquivalent: "")
+            if let window = self.window {
+                showClockItem.state = window.isVisible ? .on : .off
+            }
+            menu.addItem(showClockItem)
             menu.addItem(NSMenuItem.separator())
+
+            // Font Color submenu
+            let fontColorMenu = NSMenu()
+
+            // Free colors
+            fontColorMenu.addItem(self.createFontColorMenuItem(title: "White", colorName: "white"))
+            fontColorMenu.addItem(self.createFontColorMenuItem(title: "Green", colorName: "green"))
+
+            // Premium colors
+            if isPremium {
+                fontColorMenu.addItem(NSMenuItem.separator())
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Black", colorName: "black"))
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Cyan", colorName: "cyan"))
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Red", colorName: "red"))
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Orange", colorName: "orange"))
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Yellow", colorName: "yellow"))
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Blue", colorName: "blue"))
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Purple", colorName: "purple"))
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Pink", colorName: "pink"))
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Mint", colorName: "mint"))
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Teal", colorName: "teal"))
+                fontColorMenu.addItem(self.createFontColorMenuItem(title: "Indigo", colorName: "indigo"))
+            }
+
+            let fontColorItem = NSMenuItem(title: "Font Color", action: nil, keyEquivalent: "")
+            fontColorItem.submenu = fontColorMenu
+            menu.addItem(fontColorItem)
+            
+            // Font Style submenu
+            let fontStyleMenu = NSMenu()
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Rounded (Default)", fontName: "rounded"))
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Monospaced", fontName: "monospaced"))
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Serif", fontName: "serif"))
+            fontStyleMenu.addItem(NSMenuItem.separator())
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Ultra Light", fontName: "ultralight"))
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Thin", fontName: "thin"))
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Light", fontName: "light"))
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Medium", fontName: "medium"))
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Bold", fontName: "bold"))
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Heavy", fontName: "heavy"))
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Black", fontName: "black"))
+            
+            let fontStyleItem = NSMenuItem(title: "Font Style", action: nil, keyEquivalent: "")
+            fontStyleItem.submenu = fontStyleMenu
+            menu.addItem(fontStyleItem)
+            menu.addItem(NSMenuItem.separator())
+
+            // Glass Style submenu
+            let glassStyleItem = NSMenuItem(title: "Glass Style", action: nil, keyEquivalent: "")
+            glassStyleItem.submenu = self.makeGlassStyleMenu()
+            menu.addItem(glassStyleItem)
+            menu.addItem(NSMenuItem.separator())
+
+            // Clock position submenu
+            let positionMenu = NSMenu()
+            let currentPreset = self.defaults.string(forKey: "windowPositionPreset") ?? ClockWindowPosition.topCenter.rawValue
+            ClockWindowPosition.allCases.forEach { position in
+                let item = NSMenuItem(title: position.displayName, action: #selector(self.snapWindowToPreset(_:)), keyEquivalent: "")
+                item.representedObject = position.rawValue
+                item.state = currentPreset == position.rawValue ? .on : .off
+                item.target = self
+                positionMenu.addItem(item)
+            }
+
+            let positionItem = NSMenuItem(title: "Clock Position", action: nil, keyEquivalent: "")
+            positionItem.submenu = positionMenu
+            menu.addItem(positionItem)
+            menu.addItem(NSMenuItem.separator())
+
+            // Premium features
+            if isPremium {
+                let showSecondsItem = NSMenuItem(title: "Show Seconds", action: #selector(self.toggleSeconds), keyEquivalent: "")
+                showSecondsItem.state = self.defaults.bool(forKey: "showSeconds") ? .on : .off
+                menu.addItem(showSecondsItem)
+
+                let use24HourItem = NSMenuItem(title: "Use 24-Hour Format", action: #selector(self.toggleUse24HourFormat), keyEquivalent: "")
+                use24HourItem.state = self.defaults.bool(forKey: "use24HourFormat") ? .on : .off
+                menu.addItem(use24HourItem)
+
+                let showBatteryItem = NSMenuItem(title: "Show Battery", action: #selector(self.toggleBattery), keyEquivalent: "")
+                showBatteryItem.state = self.defaults.bool(forKey: "showBattery") ? .on : .off
+                menu.addItem(showBatteryItem)
+
+                let alwaysOnTopItem = NSMenuItem(title: "Always on Top", action: #selector(self.toggleAlwaysOnTop), keyEquivalent: "")
+                alwaysOnTopItem.state = self.defaults.bool(forKey: "clockPresence.alwaysOnTop") ? .on : .off
+                menu.addItem(alwaysOnTopItem)
+
+                let disappearOnHoverItem = NSMenuItem(title: "Disappear on Hover", action: #selector(self.toggleDisappearOnHover), keyEquivalent: "")
+                disappearOnHoverItem.state = self.defaults.bool(forKey: "disappearOnHover") ? .on : .off
+                menu.addItem(disappearOnHoverItem)
+            } else {
+                menu.addItem(NSMenuItem(title: "Show Seconds 🔒 Premium", action: #selector(self.showPurchaseView), keyEquivalent: ""))
+                menu.addItem(NSMenuItem(title: "Use 24-Hour Format 🔒 Premium", action: #selector(self.showPurchaseView), keyEquivalent: ""))
+                menu.addItem(NSMenuItem(title: "Show Battery 🔒 Premium", action: #selector(self.showPurchaseView), keyEquivalent: ""))
+                menu.addItem(NSMenuItem(title: "Always on Top 🔒 Premium", action: #selector(self.showPurchaseView), keyEquivalent: ""))
+                menu.addItem(NSMenuItem(title: "Disappear on Hover 🔒 Premium", action: #selector(self.showPurchaseView), keyEquivalent: ""))
+            }
+
+            menu.addItem(NSMenuItem.separator())
+
+            // Upgrade option
+            if !isPremium {
+                menu.addItem(NSMenuItem(title: "⭐️ Upgrade to Premium ($1.99)", action: #selector(self.showPurchaseView), keyEquivalent: ""))
+                menu.addItem(NSMenuItem.separator())
+            }
+
+            let settingsItem = NSMenuItem(title: "Settings…", action: #selector(self.openSettingsWindow), keyEquivalent: ",")
+            settingsItem.target = self
+            menu.addItem(settingsItem)
+
+            // About and other options
+            menu.addItem(NSMenuItem(title: "About CoolClockPresence", action: #selector(self.showAbout), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Help", action: #selector(self.showHelpWindow), keyEquivalent: "?"))
+            menu.addItem(NSMenuItem.separator())
+            menu.addItem(NSMenuItem(title: "Show Onboarding Again", action: #selector(self.showOnboardingAgain), keyEquivalent: ""))
+            menu.addItem(NSMenuItem.separator())
+            menu.addItem(NSMenuItem(title: "Quit CoolClockPresence", action: #selector(self.quitApp), keyEquivalent: "q"))
+
+            // Ensure every actionable item routes to this delegate, including submenu items.
+            self.assignMenuTargets(menu)
         }
 
-        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettingsWindow), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        // About and other options
-        menu.addItem(NSMenuItem(title: "About CoolClockPresence", action: #selector(showAbout), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelpWindow), keyEquivalent: "?"))
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Show Onboarding Again", action: #selector(showOnboardingAgain), keyEquivalent: ""))
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Quit CoolClockPresence", action: #selector(quitApp), keyEquivalent: "q"))
-
-        // Ensure every actionable item routes to this delegate, including submenu items.
-        assignMenuTargets(menu)
+        if Thread.isMainThread {
+            rebuild()
+        } else {
+            DispatchQueue.main.async(execute: rebuild)
+        }
     }
 
     /// Recursively sets the AppDelegate as the target for any menu item that defines an action but no explicit target.
@@ -406,11 +423,92 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         return item
     }
 
+    private func adjustableGlassStyleSelectionItem() -> NSMenuItem {
+        let item = NSMenuItem()
+        item.representedObject = "adjustableBlack"
+
+        return glassStyleSelectionItem(title: "Adjustable Black Glass", styleName: "adjustableBlack", action: #selector(handleAdjustableGlassSelection(_:)))
+    }
+
     @objc private func changeGlassStyle(_ sender: NSMenuItem) {
-        if let styleName = sender.representedObject as? String {
-            defaults.set(styleName, forKey: "glassStyle")
-            updateMenuBarMenu()
+        guard let styleName = sender.representedObject as? String else { return }
+        updateGlassStyleInline(to: styleName, menu: sender.menu)
+    }
+
+    @objc private func handleGlassSelectionButton(_ sender: NSButton) {
+        let styleName = sender.identifier?.rawValue ?? sender.title
+        updateGlassStyleInline(to: styleName, menu: sender.enclosingMenuItem?.menu)
+    }
+
+    @objc private func handleAdjustableGlassSelection(_ sender: NSButton) {
+        updateGlassStyleInline(to: "adjustableBlack", menu: sender.enclosingMenuItem?.menu)
+    }
+
+    private func refreshGlassStyleMenuUI(_ menu: NSMenu?, currentStyleOverride: String? = nil) {
+        guard let menu else { return }
+        let currentStyle = currentStyleOverride ?? (defaults.string(forKey: "glassStyle") ?? "liquid")
+
+        for item in menu.items {
+            if let button = item.view?.subviews.compactMap({ $0 as? NSButton }).first {
+                let styleName = button.identifier?.rawValue ?? item.representedObject as? String ?? button.title
+                button.state = styleName == currentStyle ? .on : .off
+            } else if let styleName = item.representedObject as? String {
+                item.state = currentStyle == styleName ? .on : .off
+            }
+
+            if let container = item.view as? NSStackView {
+                let enabled = currentStyle == "adjustableBlack"
+                if let header = container.arrangedSubviews.first as? NSStackView,
+                   let titleLabel = header.arrangedSubviews.first as? NSTextField,
+                   let valueLabel = header.arrangedSubviews.last as? NSTextField {
+                    titleLabel.textColor = enabled ? NSColor.labelColor : NSColor.secondaryLabelColor
+                    valueLabel.textColor = enabled ? NSColor.secondaryLabelColor : NSColor.tertiaryLabelColor
+                }
+
+                container.arrangedSubviews
+                    .compactMap { $0 as? NSSlider }
+                    .forEach { $0.isEnabled = enabled }
+            }
         }
+    }
+
+    /// Applies a glass style change while keeping the Glass Style menu open and refreshed.
+    private func updateGlassStyleInline(to styleName: String, menu: NSMenu?) {
+        isUpdatingGlassStyleInline = true
+        defaults.set(styleName, forKey: "glassStyle")
+        refreshGlassStyleMenuUI(menu, currentStyleOverride: styleName)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.isUpdatingGlassStyleInline = false
+        }
+    }
+
+    /// Creates a view-based menu item for glass style that does not dismiss the menu when clicked.
+    private func glassStyleSelectionItem(title: String, styleName: String, action: Selector? = #selector(handleGlassSelectionButton(_:))) -> NSMenuItem {
+        let item = NSMenuItem()
+        item.representedObject = styleName
+
+        let button = NSButton(title: title, target: self, action: action)
+        button.setButtonType(.radio)
+        button.state = (defaults.string(forKey: "glassStyle") ?? "liquid") == styleName ? .on : .off
+        button.identifier = NSUserInterfaceItemIdentifier(styleName)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        button.bezelStyle = .shadowlessSquare
+        button.isBordered = false
+
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(button)
+
+        NSLayoutConstraint.activate([
+            button.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 2),
+            button.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -2),
+            button.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
+            button.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -2)
+        ])
+
+        item.view = container
+        return item
     }
 
     private func adjustableBlackOpacityMenuItem() -> NSMenuItem {
@@ -477,7 +575,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.isAdjustingBlackOpacity = false
-            self.updateMenuBarMenu()
         }
         adjustableOpacityUpdateWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: workItem)
@@ -487,10 +584,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     func makeGlassStyleMenu() -> NSMenu {
         let glassStyleMenu = NSMenu()
         glassStyleMenu.autoenablesItems = false
-        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Liquid Glass", styleName: "liquid"))
-        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Clear Glass", styleName: "clear"))
-        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Black Glass", styleName: "black"))
-        glassStyleMenu.addItem(createGlassStyleMenuItem(title: "Adjustable Black Glass", styleName: "adjustableBlack"))
+        glassStyleMenu.addItem(glassStyleSelectionItem(title: "Liquid Glass", styleName: "liquid"))
+        glassStyleMenu.addItem(glassStyleSelectionItem(title: "Clear Glass", styleName: "clear"))
+        glassStyleMenu.addItem(glassStyleSelectionItem(title: "Black Glass", styleName: "black"))
+        glassStyleMenu.addItem(adjustableGlassStyleSelectionItem())
         glassStyleMenu.addItem(NSMenuItem.separator())
         glassStyleMenu.addItem(adjustableBlackOpacityMenuItem())
         return glassStyleMenu
@@ -498,8 +595,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     /// Presents the Glass Style submenu at the current mouse location (used for the clock's context menu).
     @objc func showGlassStyleMenuFromContextMenu() {
+        popGlassStyleMenu(at: NSEvent.mouseLocation)
+    }
+
+    private func popGlassStyleMenu(at location: NSPoint) {
         let menu = makeGlassStyleMenu()
-        let location = NSEvent.mouseLocation
+        assignMenuTargets(menu)
         menu.popUp(positioning: nil, at: location, in: nil)
     }
 
