@@ -86,7 +86,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         "CoolClockPresence"
     }
     private var appStoreRegionCode: String {
-        Locale.current.regionCode?.lowercased() ?? "us"
+        Locale.current.region?.identifier.lowercased() ?? "us"
     }
     private var appStoreProductURL: URL? {
         // Standard HTTPS link works even if the Mac App Store deep link is blocked by region
