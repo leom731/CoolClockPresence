@@ -25,10 +25,7 @@ struct CoolClockPresenceApp: App {
             // Add standard App Menu with Quit option
             CommandGroup(replacing: .appInfo) {
                 Button("About CoolClockPresence") {
-                    NSApp.orderFrontStandardAboutPanel(options: [
-                        .applicationName: "CoolClockPresence",
-                        .applicationVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-                    ])
+                    appDelegate.showAbout()
                 }
             }
 
@@ -67,6 +64,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     var onboardingWindow: NSWindow?
     var helpWindow: NSWindow?
     var settingsWindow: NSWindow?
+    var aboutWindow: NSWindow?
     private let defaults = UserDefaults.standard
     private var statusItem: NSStatusItem?
     private var lastKnownWindowPresetValue: String?
@@ -74,6 +72,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var isAdjustingBlackOpacity = false
     private var adjustableOpacityUpdateWorkItem: DispatchWorkItem?
     private let checkmarkImage = NSImage(named: NSImage.menuOnStateTemplateName) ?? NSImage(size: NSSize(width: 12, height: 12))
+    private var appStoreProductID: String? {
+        // Prefer an Info.plist override so you can set this without code changes
+        let rawID = (Bundle.main.object(forInfoDictionaryKey: "AppStoreProductID") as? String) ?? "0000000000"
+        let trimmed = rawID.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Reject placeholder or empty values
+        if trimmed.isEmpty || trimmed == "0000000000" { return nil }
+        return trimmed
+    }
+    private var appDisplayName: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String) ??
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String) ??
+        "CoolClockPresence"
+    }
+    private var appStoreRegionCode: String {
+        Locale.current.regionCode?.lowercased() ?? "us"
+    }
+    private var appStoreProductURL: URL? {
+        // Standard HTTPS link works even if the Mac App Store deep link is blocked by region
+        guard let appStoreProductID else { return nil }
+        return URL(string: "https://apps.apple.com/\(appStoreRegionCode)/app/id\(appStoreProductID)")
+    }
+    private var appStoreDeepLinkURL: URL? {
+        // Deep link into the Mac App Store app
+        guard let appStoreProductID else { return nil }
+        return URL(string: "macappstore://itunes.apple.com/app/id\(appStoreProductID)?mt=12")
+    }
+    private var appStoreSearchURL: URL? {
+        // Fallback search inside the Mac App Store if no product ID is set
+        let encoded = appDisplayName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "CoolClockPresence"
+        return URL(string: "macappstore://itunes.apple.com/search?term=\(encoded)&entity=macSoftware")
+    }
+    private var appStoreSearchWebURL: URL? {
+        let encoded = appDisplayName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "CoolClockPresence"
+        return URL(string: "https://apps.apple.com/search?term=\(encoded)&entity=macSoftware")
+    }
     private lazy var emptyCheckmarkImage: NSImage = {
         let image = NSImage(size: checkmarkImage.size)
         image.lockFocus()
@@ -640,15 +673,79 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     @objc func showAbout() {
-        NSApp.orderFrontStandardAboutPanel(options: [
-            NSApplication.AboutPanelOptionKey.applicationName: "CoolClockPresence",
-            NSApplication.AboutPanelOptionKey.applicationVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        ])
+        if let aboutWindow {
+            aboutWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 360),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = "About CoolClockPresence"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.setFrameAutosaveName("AboutWindow")
+
+        let aboutView = AboutView(
+            version: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
+            buildNumber: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1",
+            onCheckForUpdates: { [weak self] in
+                self?.openUpdatesPage()
+            },
+            onOpenAppStore: { [weak self] in
+                self?.openAppStorePage()
+            }
+        )
+
+        window.contentView = NSHostingView(rootView: aboutView)
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        aboutWindow = window
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: nil
+        ) { [weak self] _ in
+            self?.aboutWindow = nil
+        }
     }
 
     @objc func quitApp() {
         NSApplication.shared.terminate(nil)
+    }
+
+    private func openUpdatesPage() {
+        guard let updatesURL = URL(string: "macappstore://showUpdatesPage") else { return }
+        NSWorkspace.shared.open(updatesURL)
+    }
+
+    private func openAppStorePage() {
+        // Try product deep link first (opens the App Store app)
+        if let appStoreDeepLinkURL, NSWorkspace.shared.open(appStoreDeepLinkURL) {
+            return
+        }
+
+        // Fallback to the HTTPS listing (opens in Safari and routes to App Store)
+        if let appStoreProductURL, NSWorkspace.shared.open(appStoreProductURL) {
+            return
+        }
+
+        // If no product ID is set, fall back to a search for the app name
+        if let appStoreSearchURL, NSWorkspace.shared.open(appStoreSearchURL) {
+            return
+        }
+
+        if let appStoreSearchWebURL {
+            NSWorkspace.shared.open(appStoreSearchWebURL)
+        }
     }
 
     @objc func openSettingsWindow() {
