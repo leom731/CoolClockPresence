@@ -259,6 +259,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Rounded (Default)", fontName: "rounded"))
             fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Monospaced", fontName: "monospaced"))
             fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Serif", fontName: "serif"))
+            fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Time Circuit (LED)", fontName: "led"))
             fontStyleMenu.addItem(NSMenuItem.separator())
             fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Ultra Light", fontName: "ultralight"))
             fontStyleMenu.addItem(self.createFontStyleMenuItem(title: "Thin", fontName: "thin"))

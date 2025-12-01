@@ -110,7 +110,7 @@ struct ClockPresenceView: View {
         case "serif":
             return .system(size: fontSize, weight: .semibold, design: .serif)
         case "led":
-            // Use DSEG7 Classic LED font for authentic 7-segment display look
+            // Back to the Future time-circuit LED look using DSEG7 Classic
             return Font.custom("DSEG7Classic-Bold", size: fontSize)
         case "ultralight":
             return .system(size: fontSize, weight: .ultraLight, design: .default)
@@ -142,7 +142,7 @@ struct ClockPresenceView: View {
         case "serif":
             return .system(size: fontSize, weight: .medium, design: .serif)
         case "led":
-            // Use DSEG7 Classic LED font for authentic 7-segment display look
+            // Back to the Future time-circuit LED look using DSEG7 Classic
             return Font.custom("DSEG7Classic-Bold", size: fontSize)
         case "ultralight":
             return .system(size: fontSize, weight: .ultraLight, design: .default)
@@ -414,6 +414,7 @@ struct ClockPresenceView: View {
                     fontStyleButton(title: "Rounded (Default)", fontName: "rounded")
                     fontStyleButton(title: "Monospaced", fontName: "monospaced")
                     fontStyleButton(title: "Serif", fontName: "serif")
+                    fontStyleButton(title: "Time Circuit (LED)", fontName: "led")
                     Divider()
                     fontStyleButton(title: "Ultra Light", fontName: "ultralight")
                     fontStyleButton(title: "Thin", fontName: "thin")

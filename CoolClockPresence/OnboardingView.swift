@@ -33,7 +33,7 @@ struct OnboardingView: View {
                 "Drag anywhere to move",
                 "Resize from corners/edges",
                 "Access settings from menu bar or right-click",
-                "Choose from 10 font styles to personalize your clock",
+                "Choose from 11 font styles, including a Back to the Future time-circuit LED look",
                 "Snap to corners or mid-screen instantly using Clock Position presets",
                 "Hold ⌘ while hovering to keep the clock visible"
             ],
