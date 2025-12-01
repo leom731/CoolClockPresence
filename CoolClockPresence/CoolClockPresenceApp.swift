@@ -1154,8 +1154,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 }
 
 private final class ActivatingPanel: NSPanel {
+    private enum ResizeRegion {
+        case none, left, right, top, bottom, topLeft, topRight, bottomLeft, bottomRight
+    }
+
+    private let resizeHitThickness: CGFloat = 14.0
     private var dragStartLocation: NSPoint?
     private var windowOriginAtDragStart: NSPoint?
+    private var resizeStartLocation: NSPoint?
+    private var resizeStartFrame: NSRect?
+    private var activeResizeRegion: ResizeRegion = .none
     
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
@@ -1179,16 +1187,18 @@ private final class ActivatingPanel: NSPanel {
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
         // Trigger cursor update based on mouse position
-        updateCursorForMouseLocation(event.locationInWindow)
+        updateCursor(for: resizeRegion(for: event.locationInWindow))
     }
     
     override func mouseDown(with event: NSEvent) {
         let locationInWindow = event.locationInWindow
         
-        // Check if click is near an edge (resize zone)
-        if isNearEdge(locationInWindow) {
-            // Let the system handle resizing - don't intercept
-            super.mouseDown(with: event)
+        let region = resizeRegion(for: locationInWindow)
+        if region != .none {
+            // Begin a custom resize so the hit area is larger than the default system border
+            activeResizeRegion = region
+            resizeStartLocation = NSEvent.mouseLocation
+            resizeStartFrame = frame
             return
         }
         
@@ -1201,6 +1211,23 @@ private final class ActivatingPanel: NSPanel {
     override func mouseDragged(with event: NSEvent) {
         guard let dragStartLocation = dragStartLocation,
               let windowOriginAtDragStart = windowOriginAtDragStart else {
+            if activeResizeRegion != .none,
+               let resizeStartLocation,
+               let resizeStartFrame {
+                let currentMouseLocation = NSEvent.mouseLocation
+                let dx = currentMouseLocation.x - resizeStartLocation.x
+                let dy = currentMouseLocation.y - resizeStartLocation.y
+
+                let newFrame = resizedFrame(
+                    from: resizeStartFrame,
+                    region: activeResizeRegion,
+                    dx: dx,
+                    dy: dy
+                )
+
+                setFrame(newFrame, display: true)
+                return
+            }
             // No drag start recorded, let system handle
             super.mouseDragged(with: event)
             return
@@ -1224,69 +1251,139 @@ private final class ActivatingPanel: NSPanel {
     override func mouseUp(with event: NSEvent) {
         dragStartLocation = nil
         windowOriginAtDragStart = nil
+        resizeStartFrame = nil
+        resizeStartLocation = nil
+        activeResizeRegion = .none
         super.mouseUp(with: event)
     }
     
-    private func isNearEdge(_ location: NSPoint) -> Bool {
-        let edgeThickness: CGFloat = 30.0
+    private func resizeRegion(for location: NSPoint) -> ResizeRegion {
         let windowBounds = NSRect(origin: .zero, size: frame.size)
 
-        let nearTop = location.y >= windowBounds.height - edgeThickness
-        let nearBottom = location.y <= edgeThickness
-        let nearLeft = location.x <= edgeThickness
-        let nearRight = location.x >= windowBounds.width - edgeThickness
+        let nearTop = location.y >= windowBounds.height - resizeHitThickness
+        let nearBottom = location.y <= resizeHitThickness
+        let nearLeft = location.x <= resizeHitThickness
+        let nearRight = location.x >= windowBounds.width - resizeHitThickness
 
-        return nearTop || nearBottom || nearLeft || nearRight
+        if nearTop && nearLeft { return .topLeft }
+        if nearTop && nearRight { return .topRight }
+        if nearBottom && nearLeft { return .bottomLeft }
+        if nearBottom && nearRight { return .bottomRight }
+        if nearTop { return .top }
+        if nearBottom { return .bottom }
+        if nearLeft { return .left }
+        if nearRight { return .right }
+        return .none
     }
 
-    private func updateCursorForMouseLocation(_ location: NSPoint) {
-        // Increased edge thickness for easier grabbing - was 8, now 30 for even easier access
-        let edgeThickness: CGFloat = 30.0
+    private func resizedFrame(from frame: NSRect, region: ResizeRegion, dx: CGFloat, dy: CGFloat) -> NSRect {
+        let minFrameSize = effectiveMinFrameSize()
+        let maxFrameSize = effectiveMaxFrameSize()
 
-        // Get window bounds in window coordinates
-        let windowBounds = NSRect(origin: .zero, size: frame.size)
+        func clampWidth(_ width: CGFloat) -> CGFloat {
+            let minWidth = max(minFrameSize.width, 1)
+            let maxWidth = maxFrameSize.width > 0 ? maxFrameSize.width : CGFloat.greatestFiniteMagnitude
+            return min(max(width, minWidth), maxWidth)
+        }
 
-        // Check if mouse is near edges
-        let nearTop = location.y >= windowBounds.height - edgeThickness
-        let nearBottom = location.y <= edgeThickness
-        let nearLeft = location.x <= edgeThickness
-        let nearRight = location.x >= windowBounds.width - edgeThickness
+        func clampHeight(_ height: CGFloat) -> CGFloat {
+            let minHeight = max(minFrameSize.height, 1)
+            let maxHeight = maxFrameSize.height > 0 ? maxFrameSize.height : CGFloat.greatestFiniteMagnitude
+            return min(max(height, minHeight), maxHeight)
+        }
 
-        // Set appropriate cursor based on position - using private API cursors for diagonal resize
-        if nearTop && nearLeft {
-            // Top-left corner - resize from northwest
+        let rightEdge = frame.maxX
+        let topEdge = frame.maxY
+        var newFrame = frame
+
+        switch region {
+        case .right:
+            newFrame.size.width = clampWidth(frame.size.width + dx)
+        case .left:
+            let newWidth = clampWidth(frame.size.width - dx)
+            newFrame.size.width = newWidth
+            newFrame.origin.x = rightEdge - newWidth
+        case .top:
+            newFrame.size.height = clampHeight(frame.size.height + dy)
+        case .bottom:
+            let newHeight = clampHeight(frame.size.height - dy)
+            newFrame.size.height = newHeight
+            newFrame.origin.y = topEdge - newHeight
+        case .topLeft:
+            let newWidth = clampWidth(frame.size.width - dx)
+            let newHeight = clampHeight(frame.size.height + dy)
+            newFrame.size.width = newWidth
+            newFrame.origin.x = rightEdge - newWidth
+            newFrame.size.height = newHeight
+        case .topRight:
+            newFrame.size.width = clampWidth(frame.size.width + dx)
+            newFrame.size.height = clampHeight(frame.size.height + dy)
+        case .bottomLeft:
+            let newWidth = clampWidth(frame.size.width - dx)
+            let newHeight = clampHeight(frame.size.height - dy)
+            newFrame.size.width = newWidth
+            newFrame.origin.x = rightEdge - newWidth
+            newFrame.size.height = newHeight
+            newFrame.origin.y = topEdge - newHeight
+        case .bottomRight:
+            newFrame.size.width = clampWidth(frame.size.width + dx)
+            let newHeight = clampHeight(frame.size.height - dy)
+            newFrame.size.height = newHeight
+            newFrame.origin.y = topEdge - newHeight
+        case .none:
+            break
+        }
+
+        return newFrame
+    }
+
+    private func effectiveMinFrameSize() -> CGSize {
+        let contentMin = contentMinSize
+        if contentMin != .zero {
+            return frameRect(forContentRect: NSRect(origin: .zero, size: contentMin)).size
+        }
+        return minSize == .zero ? frame.size : minSize
+    }
+
+    private func effectiveMaxFrameSize() -> CGSize {
+        let contentMax = contentMaxSize
+        if contentMax != .zero {
+            return frameRect(forContentRect: NSRect(origin: .zero, size: contentMax)).size
+        }
+        return maxSize == .zero ? CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude) : maxSize
+    }
+
+    private func updateCursor(for region: ResizeRegion) {
+        switch region {
+        case .topLeft:
             if let cursor = NSCursor.perform(NSSelectorFromString("_windowResizeNorthWestCursor"))?.takeUnretainedValue() as? NSCursor {
                 cursor.set()
             } else {
                 NSCursor.arrow.set()
             }
-        } else if nearTop && nearRight {
-            // Top-right corner - resize from northeast
+        case .topRight:
             if let cursor = NSCursor.perform(NSSelectorFromString("_windowResizeNorthEastCursor"))?.takeUnretainedValue() as? NSCursor {
                 cursor.set()
             } else {
                 NSCursor.arrow.set()
             }
-        } else if nearBottom && nearLeft {
-            // Bottom-left corner - resize from southwest
+        case .bottomLeft:
             if let cursor = NSCursor.perform(NSSelectorFromString("_windowResizeSouthWestCursor"))?.takeUnretainedValue() as? NSCursor {
                 cursor.set()
             } else {
                 NSCursor.arrow.set()
             }
-        } else if nearBottom && nearRight {
-            // Bottom-right corner - resize from southeast
+        case .bottomRight:
             if let cursor = NSCursor.perform(NSSelectorFromString("_windowResizeSouthEastCursor"))?.takeUnretainedValue() as? NSCursor {
                 cursor.set()
             } else {
                 NSCursor.arrow.set()
             }
-        } else if nearTop || nearBottom {
+        case .top, .bottom:
             NSCursor.resizeUpDown.set()
-        } else if nearLeft || nearRight {
+        case .left, .right:
             NSCursor.resizeLeftRight.set()
-        } else {
-            // Reset to default cursor when not near edges
+        case .none:
             NSCursor.arrow.set()
         }
     }
