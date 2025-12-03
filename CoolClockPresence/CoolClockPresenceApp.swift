@@ -10,6 +10,7 @@
 #if os(macOS)
 import SwiftUI
 import AppKit
+import CoreText
 
 @main
 struct CoolClockPresenceApp: App {
@@ -140,6 +141,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         ])
         lastKnownWindowPresetValue = defaults.string(forKey: "windowPositionPreset") ?? ClockWindowPosition.topCenter.rawValue
 
+        // Make sure bundled fonts (e.g., LED) are available even if not installed system-wide
+        registerBundledFonts()
+
         // Setup Menu Bar Extra (status bar item)
         setupMenuBarExtra()
 
@@ -164,6 +168,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             showOnboarding()
         } else {
             showMainClock()
+        }
+    }
+
+    /// Registers bundled fonts so the LED style renders even if not installed on the Mac.
+    private func registerBundledFonts() {
+        let fontFiles = ["DSEG7Classic-Bold.ttf"]
+
+        for file in fontFiles {
+            guard let url = Bundle.main.url(forResource: (file as NSString).deletingPathExtension,
+                                            withExtension: (file as NSString).pathExtension) else {
+                print("⚠️ Missing bundled font: \(file)")
+                continue
+            }
+
+            var error: Unmanaged<CFError>?
+            let success = CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
+
+            if !success, let err = error?.takeRetainedValue() {
+                // Ignore "already registered" noise; log anything else
+                let code = CTFontManagerError(rawValue: CFErrorGetCode(err))
+                if code != .alreadyRegistered {
+                    let message = CFErrorCopyDescription(err) as String? ?? "Unknown error"
+                    print("⚠️ Failed to register font \(file): \(message)")
+                }
+            }
         }
     }
 
