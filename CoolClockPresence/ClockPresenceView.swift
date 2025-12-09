@@ -368,6 +368,7 @@ struct ClockPresenceView: View {
                                 .opacity(isVisible ? 1 : 0)
                             }
                         }
+                        .padding(.top, 4 * currentScale)
                     }
                 }
                 .padding(.vertical, 6 * currentScale)
