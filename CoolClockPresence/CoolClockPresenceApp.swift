@@ -66,6 +66,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     var helpWindow: NSWindow?
     var settingsWindow: NSWindow?
     var aboutWindow: NSWindow?
+    var worldClockPickerWindow: NSWindow?
+    var manageWorldClocksWindow: NSWindow?
     private let defaults = UserDefaults.standard
     private var statusItem: NSStatusItem?
     private var lastKnownWindowPresetValue: String?
@@ -75,6 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var isBuildingMenu = false
     private var adjustableOpacityUpdateWorkItem: DispatchWorkItem?
     private let checkmarkImage = NSImage(named: NSImage.menuOnStateTemplateName) ?? NSImage(size: NSSize(width: 12, height: 12))
+    private lazy var worldClockManager = WorldClockManager.shared
     private var appStoreProductID: String? {
         // Prefer an Info.plist override so you can set this without code changes
         let rawID = (Bundle.main.object(forInfoDictionaryKey: "AppStoreProductID") as? String) ?? "0000000000"
@@ -158,6 +161,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             self,
             selector: #selector(showPurchaseView),
             name: NSNotification.Name("ShowPurchaseView"),
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleOpenWorldClock),
+            name: NSNotification.Name("OpenWorldClock"),
             object: nil
         )
 
@@ -323,6 +333,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             let positionItem = NSMenuItem(title: "Clock Position", action: nil, keyEquivalent: "")
             positionItem.submenu = positionMenu
             menu.addItem(positionItem)
+            menu.addItem(NSMenuItem.separator())
+
+            // World Clocks submenu
+            let worldClocksMenu = NSMenu()
+            worldClocksMenu.addItem(NSMenuItem(title: "Add World Clock...", action: #selector(self.showWorldClockPicker), keyEquivalent: ""))
+
+            if !self.worldClockManager.savedLocations.isEmpty {
+                worldClocksMenu.addItem(NSMenuItem.separator())
+
+                for location in self.worldClockManager.savedLocations {
+                    let item = NSMenuItem(title: location.displayName, action: #selector(self.toggleWorldClockFromMenu(_:)), keyEquivalent: "")
+                    item.representedObject = location.id
+                    item.state = self.worldClockManager.isLocationOpen(id: location.id) ? .on : .off
+                    item.target = self
+                    worldClocksMenu.addItem(item)
+                }
+
+                worldClocksMenu.addItem(NSMenuItem.separator())
+                worldClocksMenu.addItem(NSMenuItem(title: "Manage World Clocks...", action: #selector(self.showManageWorldClocks), keyEquivalent: ""))
+            }
+
+            let worldClocksItem = NSMenuItem(title: "World Clocks", action: nil, keyEquivalent: "")
+            worldClocksItem.submenu = worldClocksMenu
+            menu.addItem(worldClocksItem)
             menu.addItem(NSMenuItem.separator())
 
             // Premium features
@@ -1170,6 +1204,192 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let size = panel.frame.size
         defaults.set(size.width, forKey: "windowWidth")
         defaults.set(size.height, forKey: "windowHeight")
+    }
+
+    // MARK: - World Clock Management
+
+    @objc func showWorldClockPicker() {
+        if let worldClockPickerWindow {
+            worldClockPickerWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = "Add World Clock"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        let pickerView = WorldClockPickerView()
+        window.contentView = NSHostingView(rootView: pickerView)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        self.worldClockPickerWindow = window
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: nil
+        ) { [weak self] _ in
+            self?.worldClockPickerWindow = nil
+        }
+    }
+
+    @objc func showManageWorldClocks() {
+        if let manageWorldClocksWindow {
+            manageWorldClocksWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = "Manage World Clocks"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        let manageView = ManageWorldClocksView()
+        window.contentView = NSHostingView(rootView: manageView)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        self.manageWorldClocksWindow = window
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: nil
+        ) { [weak self] _ in
+            self?.manageWorldClocksWindow = nil
+        }
+    }
+
+    @objc func toggleWorldClockFromMenu(_ sender: NSMenuItem) {
+        guard let locationID = sender.representedObject as? UUID,
+              let location = worldClockManager.savedLocations.first(where: { $0.id == locationID }) else {
+            return
+        }
+        worldClockManager.toggleWorldClock(for: location)
+    }
+
+    @objc func handleOpenWorldClock(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let location = userInfo["location"] as? WorldClockLocation,
+              let timeZone = location.timeZone else {
+            return
+        }
+
+        createWorldClockWindow(for: location, timeZone: timeZone)
+    }
+
+    private func createWorldClockWindow(for location: WorldClockLocation, timeZone: TimeZone) {
+        // Create the world clock window using ActivatingPanel
+        let panel = ActivatingPanel(
+            contentRect: NSRect(x: location.windowX, y: location.windowY, width: location.windowWidth, height: location.windowHeight),
+            styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        // Configure panel
+        panel.title = "World Clock - \(location.displayName)"
+        panel.isFloatingPanel = true
+        panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.popUpMenuWindow)))
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = false
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.isRestorable = false
+
+        // Set size constraints
+        panel.contentMinSize = CGSize(width: 168, height: 80)
+        panel.contentMaxSize = CGSize(width: 616, height: 240)
+
+        // Hide standard window buttons
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
+
+        // Set rounded corners
+        if let contentView = panel.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.cornerRadius = 40
+            contentView.layer?.masksToBounds = true
+        }
+
+        // Create the world clock view
+        let worldClockView = WorldClockView(location: location, timeZone: timeZone)
+        let hostingView = NSHostingView(rootView: worldClockView)
+        panel.contentView = hostingView
+
+        // Apply corner radius
+        hostingView.wantsLayer = true
+        hostingView.layer?.cornerRadius = 40
+        hostingView.layer?.cornerCurve = .continuous
+        hostingView.layer?.masksToBounds = true
+
+        // Register with manager
+        worldClockManager.registerWorldClockWindow(panel, for: location.id)
+
+        // Show the window
+        panel.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
+
+        // Observe position and size changes
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: panel,
+            queue: nil
+        ) { [weak self, locationID = location.id] notification in
+            guard let panel = notification.object as? NSPanel else { return }
+            let origin = panel.frame.origin
+            let size = panel.frame.size
+            self?.worldClockManager.updateLocationWindow(id: locationID, x: origin.x, y: origin.y, width: size.width, height: size.height)
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification,
+            object: panel,
+            queue: nil
+        ) { [weak self, locationID = location.id] notification in
+            guard let panel = notification.object as? NSPanel else { return }
+            let origin = panel.frame.origin
+            let size = panel.frame.size
+            self?.worldClockManager.updateLocationWindow(id: locationID, x: origin.x, y: origin.y, width: size.width, height: size.height)
+        }
+
+        // Observe window close
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: panel,
+            queue: nil
+        ) { [weak self, locationID = location.id] _ in
+            self?.worldClockManager.unregisterWorldClockWindow(for: locationID)
+        }
+
+        // Set delegate to handle close button
+        panel.delegate = self
     }
 
     // MARK: - NSWindowDelegate

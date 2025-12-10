@@ -75,12 +75,14 @@ extension WorldClockLocation {
         WorldClockLocation(displayName: "Beijing, China", timeZoneIdentifier: "Asia/Shanghai"),
         WorldClockLocation(displayName: "Seoul, South Korea", timeZoneIdentifier: "Asia/Seoul"),
         WorldClockLocation(displayName: "Bangkok, Thailand", timeZoneIdentifier: "Asia/Bangkok"),
+        WorldClockLocation(displayName: "Manila, Philippines", timeZoneIdentifier: "Asia/Manila"),
         WorldClockLocation(displayName: "São Paulo, Brazil", timeZoneIdentifier: "America/Sao_Paulo"),
         WorldClockLocation(displayName: "Mexico City, Mexico", timeZoneIdentifier: "America/Mexico_City"),
         WorldClockLocation(displayName: "Toronto, Canada", timeZoneIdentifier: "America/Toronto"),
         WorldClockLocation(displayName: "Vancouver, Canada", timeZoneIdentifier: "America/Vancouver"),
         WorldClockLocation(displayName: "Auckland, New Zealand", timeZoneIdentifier: "Pacific/Auckland"),
         WorldClockLocation(displayName: "Cairo, Egypt", timeZoneIdentifier: "Africa/Cairo"),
+        WorldClockLocation(displayName: "Jerusalem, Israel", timeZoneIdentifier: "Asia/Jerusalem"),
         WorldClockLocation(displayName: "Johannesburg, South Africa", timeZoneIdentifier: "Africa/Johannesburg"),
     ]
 
