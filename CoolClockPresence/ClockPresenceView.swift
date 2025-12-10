@@ -33,6 +33,7 @@ struct ClockPresenceView: View {
     @State private var isCommandKeyPressed: Bool = false
     @StateObject private var batteryMonitor = BatteryMonitor()
     @StateObject private var purchaseManager = PurchaseManager.shared
+    @StateObject private var photoManager = PhotoWindowManager.shared
     @State private var showingPurchaseSheet = false
     @State private var mouseLocation: CGPoint = .zero
     @State private var showResizeHints: Bool = false
@@ -374,15 +375,15 @@ struct ClockPresenceView: View {
                 .padding(.vertical, 6 * currentScale)
                 .padding(.horizontal, 10 * currentScale)
             }
-                    .contentShape(Rectangle())
-                    .contextMenu {
-                        Button {
-                            performMenuAction(#selector(AppDelegate.toggleClockWindow))
-                        } label: {
-                            let isVisible = appDelegate?.window?.isVisible ?? false
-                            if isVisible {
-                                Label("Show Clock Window", systemImage: "checkmark")
-                            } else {
+            .contentShape(Rectangle())
+            .contextMenu {
+                Button {
+                    performMenuAction(#selector(AppDelegate.toggleClockWindow))
+                } label: {
+                    let isVisible = appDelegate?.window?.isVisible ?? false
+                    if isVisible {
+                        Label("Show Clock Window", systemImage: "checkmark")
+                    } else {
                         Text("Show Clock Window")
                     }
                 }
@@ -466,6 +467,35 @@ struct ClockPresenceView: View {
                         Button("Manage World Clocks...") {
                             performMenuAction(#selector(AppDelegate.showManageWorldClocks))
                         }
+                    }
+                }
+                Divider()
+
+                Menu("Photos") {
+                    Button("Add Photo...") {
+                        performMenuAction(#selector(AppDelegate.showPhotoPicker))
+                    }
+
+                    if !photoManager.savedPhotos.isEmpty {
+                        Divider()
+
+                        ForEach(photoManager.savedPhotos, id: \.id) { photo in
+                            Button {
+                                photoManager.togglePhotoWindow(for: photo)
+                            } label: {
+                                if photoManager.isPhotoOpen(id: photo.id) {
+                                    Label(photo.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(photo.displayName)
+                                }
+                            }
+                        }
+
+                        Divider()
+                    }
+
+                    Button("Manage Photos...") {
+                        performMenuAction(#selector(AppDelegate.showManagePhotos))
                     }
                 }
                 Divider()

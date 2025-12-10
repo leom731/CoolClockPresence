@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
     @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
     @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
+    @AppStorage("photoWindowOpacity") private var photoWindowOpacity: Double = 1.0
     @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
     @AppStorage("glassStyle") private var glassStyle: String = "liquid"
     @AppStorage("adjustableBlackOpacity") private var adjustableBlackOpacity: Double = 0.82
@@ -102,6 +103,18 @@ struct SettingsView: View {
                                 showingPurchaseSheet = true
                             }
                             .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    }
+
+                    Section(header: Text("Photo Transparency").font(.headline).frame(maxWidth: .infinity, alignment: .center)) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Photo Window Opacity")
+                                Spacer()
+                                Text("\(Int(photoWindowOpacity * 100))%")
+                                    .foregroundColor(.secondary)
+                            }
+                            Slider(value: $photoWindowOpacity, in: 0.2...1.0, step: 0.05)
                         }
                     }
                 }

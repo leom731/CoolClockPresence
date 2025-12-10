@@ -11,6 +11,7 @@
 import SwiftUI
 import AppKit
 import CoreText
+import UniformTypeIdentifiers
 
 @main
 struct CoolClockPresenceApp: App {
@@ -68,6 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     var aboutWindow: NSWindow?
     var worldClockPickerWindow: NSWindow?
     var manageWorldClocksWindow: NSWindow?
+    var managePhotosWindow: NSWindow?
     private let defaults = UserDefaults.standard
     private var statusItem: NSStatusItem?
     private var lastKnownWindowPresetValue: String?
@@ -78,6 +80,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var adjustableOpacityUpdateWorkItem: DispatchWorkItem?
     private let checkmarkImage = NSImage(named: NSImage.menuOnStateTemplateName) ?? NSImage(size: NSSize(width: 12, height: 12))
     private lazy var worldClockManager = WorldClockManager.shared
+    private lazy var photoWindowManager = PhotoWindowManager.shared
     private var appStoreProductID: String? {
         // Prefer an Info.plist override so you can set this without code changes
         let rawID = (Bundle.main.object(forInfoDictionaryKey: "AppStoreProductID") as? String) ?? "0000000000"
@@ -140,6 +143,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             "hasCompletedOnboarding": false,
             "glassStyle": "liquid",
             "adjustableBlackOpacity": 0.82,
+            "photoWindowOpacity": 1.0,
             "windowPositionPreset": ClockWindowPosition.topCenter.rawValue
         ])
         lastKnownWindowPresetValue = defaults.string(forKey: "windowPositionPreset") ?? ClockWindowPosition.topCenter.rawValue
@@ -168,6 +172,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             self,
             selector: #selector(handleOpenWorldClock),
             name: NSNotification.Name("OpenWorldClock"),
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleOpenPhotoWindow),
+            name: NSNotification.Name("OpenPhotoWindow"),
             object: nil
         )
 
@@ -357,6 +368,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             let worldClocksItem = NSMenuItem(title: "World Clocks", action: nil, keyEquivalent: "")
             worldClocksItem.submenu = worldClocksMenu
             menu.addItem(worldClocksItem)
+            menu.addItem(NSMenuItem.separator())
+
+            // Photos submenu
+            let photosMenu = NSMenu()
+            photosMenu.addItem(NSMenuItem(title: "Add Photo...", action: #selector(self.showPhotoPicker), keyEquivalent: ""))
+
+            if !self.photoWindowManager.savedPhotos.isEmpty {
+                photosMenu.addItem(NSMenuItem.separator())
+
+                for photo in self.photoWindowManager.savedPhotos {
+                    let item = NSMenuItem(title: photo.displayName, action: #selector(self.togglePhotoFromMenu(_:)), keyEquivalent: "")
+                    item.representedObject = photo.id
+                    item.state = self.photoWindowManager.isPhotoOpen(id: photo.id) ? .on : .off
+                    item.target = self
+                    photosMenu.addItem(item)
+                }
+
+                photosMenu.addItem(NSMenuItem.separator())
+                photosMenu.addItem(NSMenuItem(title: "Manage Photos...", action: #selector(self.showManagePhotos), keyEquivalent: ""))
+            }
+
+            let photosItem = NSMenuItem(title: "Photos", action: nil, keyEquivalent: "")
+            photosItem.submenu = photosMenu
+            menu.addItem(photosItem)
             menu.addItem(NSMenuItem.separator())
 
             // Premium features
@@ -1389,6 +1424,186 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
 
         // Set delegate to handle close button
+        panel.delegate = self
+    }
+
+    // MARK: - Photo Window Management
+
+    @objc func showPhotoPicker() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [UTType.image]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.title = "Choose a Photo"
+
+        panel.begin { [weak self] result in
+            guard result == .OK, let url = panel.url else { return }
+            self?.photoWindowManager.addPhoto(from: url)
+        }
+    }
+
+    @objc func showManagePhotos() {
+        if let managePhotosWindow {
+            managePhotosWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 540, height: 440),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = "Manage Photos"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        let manageView = ManagePhotosView()
+        window.contentView = NSHostingView(rootView: manageView)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        self.managePhotosWindow = window
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: nil
+        ) { [weak self] _ in
+            self?.managePhotosWindow = nil
+        }
+    }
+
+    @objc func togglePhotoFromMenu(_ sender: NSMenuItem) {
+        guard let photoID = sender.representedObject as? UUID,
+              let photo = photoWindowManager.savedPhotos.first(where: { $0.id == photoID }) else {
+            return
+        }
+        photoWindowManager.togglePhotoWindow(for: photo)
+    }
+
+    @objc func handleOpenPhotoWindow(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let photo = userInfo["photo"] as? PhotoItem else {
+            return
+        }
+
+        let image = photoWindowManager.image(for: photo)
+        createPhotoWindow(for: photo, image: image)
+    }
+
+    private func createPhotoWindow(for photo: PhotoItem, image: NSImage?) {
+        var frame = NSRect(
+            x: photo.windowX,
+            y: photo.windowY,
+            width: photo.windowWidth,
+            height: photo.windowHeight
+        )
+
+        if photo.windowX < 0 || photo.windowY < 0,
+           let screen = NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            frame.origin = NSPoint(
+                x: screenFrame.midX - (photo.windowWidth / 2),
+                y: screenFrame.midY - (photo.windowHeight / 2)
+            )
+        }
+
+        let panel = ActivatingPanel(
+            contentRect: frame,
+            styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        panel.title = "Photo - \(photo.displayName)"
+        panel.isFloatingPanel = true
+        panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.popUpMenuWindow)))
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = false
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.isRestorable = false
+
+        panel.contentMinSize = CGSize(width: 180, height: 180)
+        panel.contentMaxSize = CGSize(width: 640, height: 640)
+
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
+
+        if let contentView = panel.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.cornerRadius = 36
+            contentView.layer?.masksToBounds = true
+        }
+
+        let photoView = PhotoWindowView(photo: photo, image: image)
+        let hostingView = NSHostingView(rootView: photoView)
+        panel.contentView = hostingView
+
+        hostingView.wantsLayer = true
+        hostingView.layer?.cornerRadius = 36
+        hostingView.layer?.cornerCurve = .continuous
+        hostingView.layer?.masksToBounds = true
+
+        photoWindowManager.registerPhotoWindow(panel, for: photo.id)
+
+        panel.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: panel,
+            queue: nil
+        ) { [weak self, photoID = photo.id] notification in
+            guard let panel = notification.object as? NSPanel else { return }
+            let origin = panel.frame.origin
+            let size = panel.frame.size
+            self?.photoWindowManager.updatePhotoWindow(
+                id: photoID,
+                x: origin.x,
+                y: origin.y,
+                width: size.width,
+                height: size.height
+            )
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification,
+            object: panel,
+            queue: nil
+        ) { [weak self, photoID = photo.id] notification in
+            guard let panel = notification.object as? NSPanel else { return }
+            let origin = panel.frame.origin
+            let size = panel.frame.size
+            self?.photoWindowManager.updatePhotoWindow(
+                id: photoID,
+                x: origin.x,
+                y: origin.y,
+                width: size.width,
+                height: size.height
+            )
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: panel,
+            queue: nil
+        ) { [weak self, photoID = photo.id] _ in
+            self?.photoWindowManager.unregisterPhotoWindow(for: photoID)
+        }
+
         panel.delegate = self
     }
 
