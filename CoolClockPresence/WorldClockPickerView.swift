@@ -13,6 +13,11 @@ import SwiftUI
 struct WorldClockPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var manager = WorldClockManager.shared
+    let onSelect: ((WorldClockLocation) -> Void)?
+
+    init(onSelect: ((WorldClockLocation) -> Void)? = nil) {
+        self.onSelect = onSelect
+    }
 
     @State private var searchText = ""
     @State private var selectedCategory: WorldClockLocation.Category = .all
@@ -111,6 +116,12 @@ struct WorldClockPickerView: View {
     }
 
     private func addLocation(_ location: WorldClockLocation) {
+        if let onSelect {
+            onSelect(location)
+            dismiss()
+            return
+        }
+
         // Check if already added
         if manager.savedLocations.contains(where: { $0.id == location.id }) {
             // Just toggle the window if already exists
@@ -283,7 +294,7 @@ struct ManageLocationRow: View {
 
 struct WorldClockPickerView_Previews: PreviewProvider {
     static var previews: some View {
-        WorldClockPickerView()
+        WorldClockPickerView(onSelect: nil)
     }
 }
 

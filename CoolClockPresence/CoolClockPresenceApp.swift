@@ -182,6 +182,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             object: nil
         )
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDockingChanged),
+            name: NSNotification.Name("WorldClockDockingChanged"),
+            object: nil
+        )
+
+        // Perform settings migration if needed
+        ClockSettingsManager.shared.performMigrationIfNeeded()
+
         // Check if this is the first launch
         let hasCompletedOnboarding = defaults.bool(forKey: "hasCompletedOnboarding")
 
@@ -1241,6 +1251,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         defaults.set(size.height, forKey: "windowHeight")
     }
 
+    // MARK: - Docking Management
+
+    @objc private func handleDockingChanged() {
+        updateMainWindowConstraints()
+        updateMenuBarMenu()
+    }
+
+    private func updateMainWindowConstraints() {
+        guard let panel = window else { return }
+
+        let dockedCount = worldClockManager.dockedClocks.count
+        let baseMinHeight: CGFloat = 60
+        let dockedClockHeight: CGFloat = 70  // Approximate height per docked clock (larger size)
+        let minHeight = baseMinHeight + CGFloat(dockedCount) * dockedClockHeight
+
+        let currentContentMin = panel.contentMinSize
+        panel.contentMinSize = CGSize(width: currentContentMin.width, height: minHeight)
+
+        // Optionally auto-resize to fit content if window is too small
+        let currentFrame = panel.frame
+        if currentFrame.height < minHeight {
+            var newFrame = currentFrame
+            newFrame.size.height = minHeight
+            newFrame.origin.y = currentFrame.maxY - minHeight  // Keep top edge in place
+            panel.setFrame(newFrame, display: true, animate: true)
+        }
+    }
+
     // MARK: - World Clock Management
 
     @objc func showWorldClockPicker() {
@@ -1350,7 +1388,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
-        panel.isMovableByWindowBackground = false
+        panel.isMovableByWindowBackground = true
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.hidesOnDeactivate = false

@@ -17,17 +17,9 @@ import IOKit.ps
 /// A compact glass-inspired clock that can float above other windows.
 struct ClockPresenceView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage("fontColorName") private var fontColorName: String = "blue"
-    @AppStorage("showBattery") private var showBattery: Bool = true
-    @AppStorage("showSeconds") private var showSeconds: Bool = true
-    @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
-    @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
-    @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
-    @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
-    @AppStorage("glassStyle") private var glassStyle: String = "liquid"
-    @AppStorage("adjustableBlackOpacity") private var adjustableBlackOpacity: Double = 0.82
+    @StateObject private var settingsManager = ClockSettingsManager.shared
+    @StateObject private var worldClockManager = WorldClockManager.shared
     @AppStorage("windowPositionPreset") private var windowPositionPreset: String = ClockWindowPosition.topCenter.rawValue
-    @AppStorage("fontDesign") private var fontDesign: String = "rounded"
 
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
@@ -38,6 +30,18 @@ struct ClockPresenceView: View {
     @State private var mouseLocation: CGPoint = .zero
     @State private var showResizeHints: Bool = false
     @State private var timelineRefresh: UUID = UUID()
+
+    // Convenience accessors for settings
+    private var fontColorName: String { settingsManager.mainClockSettings.fontColorName }
+    private var showBattery: Bool { settingsManager.mainClockSettings.showBattery }
+    private var showSeconds: Bool { settingsManager.mainClockSettings.showSeconds }
+    private var isAlwaysOnTop: Bool { settingsManager.mainClockSettings.alwaysOnTop }
+    private var disappearOnHover: Bool { settingsManager.mainClockSettings.disappearOnHover }
+    private var clockOpacity: Double { settingsManager.mainClockSettings.clockOpacity }
+    private var use24HourFormat: Bool { settingsManager.mainClockSettings.use24HourFormat }
+    private var glassStyle: String { settingsManager.mainClockSettings.glassStyle }
+    private var adjustableBlackOpacity: Double { settingsManager.mainClockSettings.adjustableBlackOpacity }
+    private var fontDesign: String { settingsManager.mainClockSettings.fontDesign }
 
     private var appDelegate: AppDelegate? {
         NSApplication.shared.delegate as? AppDelegate
@@ -371,11 +375,27 @@ struct ClockPresenceView: View {
                         }
                         .padding(.top, 4 * currentScale)
                     }
+
+                    // Docked World Clocks
+                    if !worldClockManager.dockedClocks.isEmpty {
+                        Divider()
+                            .frame(height: 1)
+                            .background(Color.white.opacity(0.2))
+                            .padding(.vertical, 6 * currentScale)
+
+                        ForEach(worldClockManager.dockedClocks) { location in
+                            DockedWorldClockView(location: location, scale: currentScale)
+                                .padding(.bottom, 4 * currentScale)
+                        }
+                    }
                 }
                 .padding(.vertical, 6 * currentScale)
                 .padding(.horizontal, 10 * currentScale)
             }
             .contentShape(Rectangle())
+            .onDrop(of: ["com.coolclock.worldclock"], isTargeted: nil) { providers in
+                handleDrop(providers: providers)
+            }
             .contextMenu {
                 Button {
                     performMenuAction(#selector(AppDelegate.toggleClockWindow))
@@ -446,18 +466,36 @@ struct ClockPresenceView: View {
                         performMenuAction(#selector(AppDelegate.showWorldClockPicker))
                     }
 
-                    let manager = WorldClockManager.shared
-                    if !manager.savedLocations.isEmpty {
+                    if !worldClockManager.savedLocations.isEmpty {
                         Divider()
 
-                        ForEach(manager.savedLocations) { location in
-                            Button(action: {
-                                manager.toggleWorldClock(for: location)
-                            }) {
-                                if manager.isLocationOpen(id: location.id) {
-                                    Label(location.displayName, systemImage: "checkmark")
-                                } else {
-                                    Text(location.displayName)
+                        // Floating clocks
+                        let floatingClocks = worldClockManager.savedLocations.filter { !$0.isDocked }
+                        if !floatingClocks.isEmpty {
+                            ForEach(floatingClocks) { location in
+                                Menu(location.displayName) {
+                                    if worldClockManager.isLocationOpen(id: location.id) {
+                                        Button("Close Window") {
+                                            worldClockManager.closeWorldClock(for: location.id)
+                                        }
+                                    } else {
+                                        Button("Open Window") {
+                                            worldClockManager.openWorldClock(for: location)
+                                        }
+                                    }
+                                    Button("Dock to Main Clock") {
+                                        worldClockManager.dockClock(for: location.id)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Docked clocks
+                        if !worldClockManager.dockedClocks.isEmpty {
+                            Divider()
+                            ForEach(worldClockManager.dockedClocks) { location in
+                                Button("📌 \(location.displayName)") {
+                                    worldClockManager.undockClock(for: location.id)
                                 }
                             }
                         }
@@ -502,11 +540,11 @@ struct ClockPresenceView: View {
 
                 // Premium features
                 if purchaseManager.isPremium {
-                    Toggle("Show Seconds", isOn: $showSeconds)
-                    Toggle("Use 24-Hour Format", isOn: $use24HourFormat)
-                    Toggle("Show Battery", isOn: $showBattery)
-                    Toggle("Always on Top", isOn: $isAlwaysOnTop)
-                    Toggle("Disappear on Hover", isOn: $disappearOnHover)
+                    Toggle("Show Seconds", isOn: settingsBinding(\.showSeconds))
+                    Toggle("Use 24-Hour Format", isOn: settingsBinding(\.use24HourFormat))
+                    Toggle("Show Battery", isOn: settingsBinding(\.showBattery))
+                    Toggle("Always on Top", isOn: settingsBinding(\.alwaysOnTop))
+                    Toggle("Disappear on Hover", isOn: settingsBinding(\.disappearOnHover))
                 } else {
                     Button("Show Seconds 🔒 Premium") {
                         showingPurchaseSheet = true
@@ -600,13 +638,23 @@ struct ClockPresenceView: View {
                 // Force TimelineView to recreate with updated system time
                 timelineRefresh = UUID()
             }
+
+            // Observe world clock docking changes
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("WorldClockDockingChanged"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                // Refresh view when docking state changes
+                timelineRefresh = UUID()
+            }
         }
     }
 
     @ViewBuilder
     private func fontColorButton(title: String, colorName: String) -> some View {
         Button {
-            fontColorName = colorName
+            settingsManager.updateMainClockProperty(\.fontColorName, value: colorName)
         } label: {
             let isSelected = fontColorName == colorName
             HStack(spacing: 8) {
@@ -620,7 +668,7 @@ struct ClockPresenceView: View {
     @ViewBuilder
     private func fontStyleButton(title: String, fontName: String) -> some View {
         Button {
-            fontDesign = fontName
+            settingsManager.updateMainClockProperty(\.fontDesign, value: fontName)
         } label: {
             if fontDesign == fontName {
                 Label(title, systemImage: "checkmark")
@@ -628,6 +676,32 @@ struct ClockPresenceView: View {
                 Text(title)
             }
         }
+    }
+
+    // Helper to create a binding for settings properties
+    private func settingsBinding(_ keyPath: WritableKeyPath<ClockSettings, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { settingsManager.mainClockSettings[keyPath: keyPath] },
+            set: { newValue in
+                settingsManager.updateMainClockProperty(keyPath, value: newValue)
+            }
+        )
+    }
+
+    // Handle drop for drag-and-drop docking
+    private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadDataRepresentation(forTypeIdentifier: "com.coolclock.worldclock") { data, error in
+            guard let data = data,
+                  let idString = String(data: data, encoding: .utf8),
+                  let locationID = UUID(uuidString: idString) else { return }
+
+            DispatchQueue.main.async {
+                worldClockManager.dockClock(for: locationID)
+            }
+        }
+        return true
     }
 
     @ViewBuilder

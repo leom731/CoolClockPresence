@@ -18,24 +18,35 @@ struct WorldClockView: View {
     let timeZone: TimeZone
 
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage("fontColorName") private var fontColorName: String = "blue"
-    @AppStorage("showSeconds") private var showSeconds: Bool = true
-    @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
-    @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
-    @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
-    @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
-    @AppStorage("glassStyle") private var glassStyle: String = "liquid"
-    @AppStorage("adjustableBlackOpacity") private var adjustableBlackOpacity: Double = 0.82
-    @AppStorage("windowPositionPreset") private var windowPositionPreset: String = ClockWindowPosition.topCenter.rawValue
-    @AppStorage("fontDesign") private var fontDesign: String = "rounded"
-
+    @StateObject private var worldClockManager = WorldClockManager.shared
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var showingPurchaseSheet = false
+    @State private var showingLocationPicker = false
     @State private var mouseLocation: CGPoint = .zero
     @State private var showResizeHints: Bool = false
     @State private var timelineRefresh: UUID = UUID()
+    @State private var liveLocation: WorldClockLocation?
+
+    private var currentLocation: WorldClockLocation {
+        liveLocation ?? location
+    }
+
+    private var activeTimeZone: TimeZone {
+        currentLocation.timeZone ?? timeZone
+    }
+
+    // Convenience accessors for per-window settings
+    private var fontColorName: String { currentLocation.settings.fontColorName }
+    private var showSeconds: Bool { currentLocation.settings.showSeconds }
+    private var isAlwaysOnTop: Bool { currentLocation.settings.alwaysOnTop }
+    private var disappearOnHover: Bool { currentLocation.settings.disappearOnHover }
+    private var clockOpacity: Double { currentLocation.settings.clockOpacity }
+    private var use24HourFormat: Bool { currentLocation.settings.use24HourFormat }
+    private var glassStyle: String { currentLocation.settings.glassStyle }
+    private var adjustableBlackOpacity: Double { currentLocation.settings.adjustableBlackOpacity }
+    private var fontDesign: String { currentLocation.settings.fontDesign }
 
     private var appDelegate: AppDelegate? {
         NSApplication.shared.delegate as? AppDelegate
@@ -108,7 +119,7 @@ struct WorldClockView: View {
     private func timeComponents(from date: Date) -> (hours: String, separator: String, minutes: String, seconds: String?, ampm: String?) {
         if use24HourFormat {
             let calendar = Calendar.autoupdatingCurrent
-            let components = calendar.dateComponents(in: timeZone, from: date)
+            let components = calendar.dateComponents(in: activeTimeZone, from: date)
             let hour = components.hour ?? 0
             let minute = components.minute ?? 0
 
@@ -121,7 +132,7 @@ struct WorldClockView: View {
         }
 
         let calendar = Calendar.autoupdatingCurrent
-        let components = calendar.dateComponents(in: timeZone, from: date)
+        let components = calendar.dateComponents(in: activeTimeZone, from: date)
         let hour = components.hour ?? 0
         let minute = components.minute ?? 0
 
@@ -269,7 +280,7 @@ struct WorldClockView: View {
                     .id(timelineRefresh)
 
                     // Location name below clock
-                    Text(location.displayName)
+                    Text(currentLocation.displayName)
                         .font(locationFont(for: currentScale))
                         .foregroundStyle(fontColor.opacity(0.70))
                         .padding(.top, 2 * currentScale)
@@ -278,11 +289,35 @@ struct WorldClockView: View {
                 .padding(.horizontal, 10 * currentScale)
             }
             .contentShape(Rectangle())
+            .modifier(
+                DockDragModifier(
+                    isEnabled: isCommandKeyPressed,
+                    provider: {
+                        let provider = NSItemProvider()
+                        provider.registerDataRepresentation(forTypeIdentifier: "com.coolclock.worldclock", visibility: .all) { completion in
+                            let data = location.id.uuidString.data(using: .utf8)
+                            completion(data, nil)
+                            return nil
+                        }
+                        return provider
+                    }
+                )
+            )
             .contextMenu {
-                Button {
+                Button("Dock to Main Clock") {
+                    WorldClockManager.shared.dockClock(for: location.id)
+                }
+
+                Button("Change Location…") {
+                    showingLocationPicker = true
+                }
+
+                Button("Close This World Clock") {
                     WorldClockManager.shared.closeWorldClock(for: location.id)
-                } label: {
-                    Text("Close This World Clock")
+                }
+
+                Button("Remove World Clock") {
+                    WorldClockManager.shared.removeLocation(id: location.id)
                 }
 
                 Divider()
@@ -332,10 +367,10 @@ struct WorldClockView: View {
 
                 // Premium features (excluding battery)
                 if purchaseManager.isPremium {
-                    Toggle("Show Seconds", isOn: $showSeconds)
-                    Toggle("Use 24-Hour Format", isOn: $use24HourFormat)
-                    Toggle("Always on Top", isOn: $isAlwaysOnTop)
-                    Toggle("Disappear on Hover", isOn: $disappearOnHover)
+                    Toggle("Show Seconds", isOn: settingsBinding(\.showSeconds))
+                    Toggle("Use 24-Hour Format", isOn: settingsBinding(\.use24HourFormat))
+                    Toggle("Always on Top", isOn: settingsBinding(\.alwaysOnTop))
+                    Toggle("Disappear on Hover", isOn: settingsBinding(\.disappearOnHover))
                 } else {
                     Button("Show Seconds 🔒 Premium") {
                         showingPurchaseSheet = true
@@ -375,6 +410,12 @@ struct WorldClockView: View {
             .sheet(isPresented: $showingPurchaseSheet) {
                 PurchaseView()
             }
+            .sheet(isPresented: $showingLocationPicker) {
+                WorldClockPickerView { newLocation in
+                    worldClockManager.replaceLocation(id: location.id, with: newLocation)
+                    showingLocationPicker = false
+                }
+            }
         }
         .overlay(
             HoverAndWindowController(
@@ -402,6 +443,14 @@ struct WorldClockView: View {
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
         .animation(.easeInOut(duration: 0.2), value: clockOpacity)
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+            syncGlassStyleFromDefaults()
+        }
+        .onReceive(worldClockManager.$savedLocations) { locations in
+            if let updated = locations.first(where: { $0.id == location.id }) {
+                liveLocation = updated
+            }
+        }
         .onAppear {
             NotificationCenter.default.addObserver(
                 forName: NSNotification.Name.NSSystemClockDidChange,
@@ -410,13 +459,17 @@ struct WorldClockView: View {
             ) { _ in
                 timelineRefresh = UUID()
             }
+            syncGlassStyleFromDefaults()
         }
     }
 
     @ViewBuilder
     private func fontColorButton(title: String, colorName: String) -> some View {
         Button {
-            fontColorName = colorName
+            var updatedSettings = currentLocation.settings
+            updatedSettings.fontColorName = colorName
+            WorldClockManager.shared.updateClockSettings(for: location.id, settings: updatedSettings)
+            cacheUpdatedSettings(updatedSettings)
         } label: {
             if fontColorName == colorName {
                 Label(title, systemImage: "checkmark")
@@ -429,13 +482,75 @@ struct WorldClockView: View {
     @ViewBuilder
     private func fontStyleButton(title: String, fontName: String) -> some View {
         Button {
-            fontDesign = fontName
+            var updatedSettings = currentLocation.settings
+            updatedSettings.fontDesign = fontName
+            WorldClockManager.shared.updateClockSettings(for: location.id, settings: updatedSettings)
+            cacheUpdatedSettings(updatedSettings)
         } label: {
             if fontDesign == fontName {
                 Label(title, systemImage: "checkmark")
             } else {
                 Text(title)
             }
+        }
+    }
+
+    // Helper to create a binding for settings properties
+    private func settingsBinding(_ keyPath: WritableKeyPath<ClockSettings, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { currentLocation.settings[keyPath: keyPath] },
+            set: { newValue in
+                var updatedSettings = currentLocation.settings
+                updatedSettings[keyPath: keyPath] = newValue
+                WorldClockManager.shared.updateClockSettings(for: location.id, settings: updatedSettings)
+                cacheUpdatedSettings(updatedSettings)
+            }
+        )
+    }
+
+    private func cacheUpdatedSettings(_ newSettings: ClockSettings) {
+        var updated = currentLocation
+        updated.settings = newSettings
+        liveLocation = updated
+    }
+
+    private func syncGlassStyleFromDefaults() {
+        let defaults = UserDefaults.standard
+        let newStyle = defaults.string(forKey: "glassStyle") ?? "liquid"
+        let rawOpacity = defaults.object(forKey: "adjustableBlackOpacity") as? Double ?? currentLocation.settings.adjustableBlackOpacity
+        let clampedOpacity = min(max(rawOpacity, 0.4), 1.0)
+
+        var updated = currentLocation
+        var changed = false
+
+        if updated.settings.glassStyle != newStyle {
+            updated.settings.glassStyle = newStyle
+            changed = true
+        }
+
+        if updated.settings.adjustableBlackOpacity != clampedOpacity {
+            updated.settings.adjustableBlackOpacity = clampedOpacity
+            changed = true
+        }
+
+        guard changed else { return }
+
+        WorldClockManager.shared.updateClockSettings(for: location.id, settings: updated.settings)
+        liveLocation = updated
+    }
+}
+
+private struct DockDragModifier: ViewModifier {
+    let isEnabled: Bool
+    let provider: () -> NSItemProvider
+
+    // Only enable the SwiftUI drag session when explicitly requested (Cmd-drag)
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.onDrag(provider)
+        } else {
+            content
         }
     }
 }

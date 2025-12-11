@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import CoreGraphics
 
 /// Represents a world clock location with timezone and display information
 struct WorldClockLocation: Codable, Identifiable, Equatable {
@@ -19,7 +20,25 @@ struct WorldClockLocation: Codable, Identifiable, Equatable {
     var windowWidth: Double
     var windowHeight: Double
 
-    init(id: UUID = UUID(), displayName: String, timeZoneIdentifier: String, windowX: Double = -1, windowY: Double = -1, windowWidth: Double = 280, windowHeight: Double = 120) {
+    // Per-window appearance settings
+    var settings: ClockSettings
+
+    // Docking state
+    var isDocked: Bool
+    var dockedOrder: Int
+
+    init(
+        id: UUID = UUID(),
+        displayName: String,
+        timeZoneIdentifier: String,
+        windowX: Double = -1,
+        windowY: Double = -1,
+        windowWidth: Double = 280,
+        windowHeight: Double = 120,
+        settings: ClockSettings = .default,
+        isDocked: Bool = false,
+        dockedOrder: Int = 0
+    ) {
         self.id = id
         self.displayName = displayName
         self.timeZoneIdentifier = timeZoneIdentifier
@@ -27,11 +46,27 @@ struct WorldClockLocation: Codable, Identifiable, Equatable {
         self.windowY = windowY
         self.windowWidth = windowWidth
         self.windowHeight = windowHeight
+        self.settings = settings
+        self.isDocked = isDocked
+        self.dockedOrder = dockedOrder
     }
 
     /// The TimeZone object for this location
     var timeZone: TimeZone? {
         TimeZone(identifier: timeZoneIdentifier)
+    }
+
+    /// Helper for managing window frame
+    var undockedFrame: CGRect? {
+        get { CGRect(x: windowX, y: windowY, width: windowWidth, height: windowHeight) }
+        set {
+            if let frame = newValue {
+                windowX = frame.origin.x
+                windowY = frame.origin.y
+                windowWidth = frame.size.width
+                windowHeight = frame.size.height
+            }
+        }
     }
 
     static func == (lhs: WorldClockLocation, rhs: WorldClockLocation) -> Bool {
