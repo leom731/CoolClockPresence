@@ -10,14 +10,11 @@
 #if os(macOS)
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct ManagePhotosView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var manager = PhotoWindowManager.shared
-
-    private var appDelegate: AppDelegate? {
-        NSApplication.shared.delegate as? AppDelegate
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,8 +25,9 @@ struct ManagePhotosView: View {
                     .fontWeight(.bold)
                 Spacer()
                 Button("Add Photo…") {
-                    appDelegate?.showPhotoPicker()
+                    showPhotoPicker()
                 }
+                .buttonStyle(.borderedProminent)
                 Button("Done") {
                     dismiss()
                 }
@@ -67,11 +65,25 @@ struct ManagePhotosView: View {
         }
         .frame(width: 520, height: 420)
     }
+
+    private func showPhotoPicker() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.title = "Choose a Photo"
+
+        panel.begin { result in
+            guard result == .OK, let url = panel.url else { return }
+            manager.addPhoto(from: url)
+        }
+    }
 }
 
 struct ManagePhotoRow: View {
     let photo: PhotoItem
-    @StateObject private var manager = PhotoWindowManager.shared
+    @ObservedObject private var manager = PhotoWindowManager.shared
 
     private var isOpen: Bool {
         manager.isPhotoOpen(id: photo.id)

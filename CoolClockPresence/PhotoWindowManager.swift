@@ -16,7 +16,6 @@ import Combine
 final class PhotoWindowManager: ObservableObject {
     static let shared = PhotoWindowManager()
 
-    let objectWillChange = ObservableObjectPublisher()
     @Published private(set) var savedPhotos: [PhotoItem] = []
     private var openWindows: [UUID: NSPanel] = [:]
     private let defaults = UserDefaults.standard
