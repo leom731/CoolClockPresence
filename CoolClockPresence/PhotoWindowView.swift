@@ -15,9 +15,9 @@ struct PhotoWindowView: View {
     let photo: PhotoItem
     let image: NSImage?
 
-    @AppStorage("glassStyle") private var glassStyle: String = "liquid"
-    @AppStorage("adjustableBlackOpacity") private var adjustableBlackOpacity: Double = 0.82
-    @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
+    @AppStorage("photo.glassStyle") private var photoGlassStyle: String = "liquid"
+    @AppStorage("photo.adjustableBlackOpacity") private var photoAdjustableBlackOpacity: Double = 0.82
+    @AppStorage("photo.disappearOnHover") private var photoDisappearOnHover: Bool = true
     @AppStorage("photoWindowOpacity") private var photoWindowOpacity: Double = 1.0
 
     @StateObject private var purchaseManager = PurchaseManager.shared
@@ -25,6 +25,7 @@ struct PhotoWindowView: View {
     @State private var isCommandKeyPressed: Bool = false
     @State private var mouseLocation: CGPoint = .zero
     @State private var showResizeHints: Bool = false
+    @State private var hasMigratedPhotoSettings = false
 
     private var appDelegate: AppDelegate? {
         NSApplication.shared.delegate as? AppDelegate
@@ -48,7 +49,7 @@ struct PhotoWindowView: View {
         GeometryReader { geometry in
             let radius = min(44, min(geometry.size.width, geometry.size.height) * 0.18)
             ZStack {
-                GlassBackdrop(style: glassStyle, adjustableOpacity: adjustableBlackOpacity)
+                GlassBackdrop(style: photoGlassStyle, adjustableOpacity: photoAdjustableBlackOpacity)
                     .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
 
                 if let image {
@@ -74,7 +75,7 @@ struct PhotoWindowView: View {
                 isHovering: $isHovering,
                 isCommandKeyPressed: $isCommandKeyPressed,
                 isPremium: purchaseManager.isPremium,
-                disappearOnHover: disappearOnHover,
+                disappearOnHover: photoDisappearOnHover,
                 mouseLocation: $mouseLocation,
                 showResizeHints: $showResizeHints
             )
@@ -90,10 +91,13 @@ struct PhotoWindowView: View {
             .allowsHitTesting(false)
         )
         .ignoresSafeArea()
-        .opacity((isHovering && !isCommandKeyPressed && purchaseManager.isPremium && disappearOnHover) ? 0 : photoWindowOpacity)
+        .opacity((isHovering && !isCommandKeyPressed && purchaseManager.isPremium && photoDisappearOnHover) ? 0 : photoWindowOpacity)
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
         .animation(.easeInOut(duration: 0.2), value: photoWindowOpacity)
+        .onAppear {
+            migrateLegacyPhotoSettingsIfNeeded()
+        }
     }
 
     private var placeholderView: some View {
@@ -122,6 +126,27 @@ struct PhotoWindowView: View {
         } label: {
             Text("Remove Photo")
         }
+
+        Divider()
+
+        Menu("Glass Style") {
+            photoGlassStyleButton(title: "Liquid Glass", styleName: "liquid")
+            photoGlassStyleButton(title: "Clear Glass", styleName: "clear")
+            photoGlassStyleButton(title: "Black Glass", styleName: "black")
+            photoGlassStyleButton(title: "Adjustable Black Glass", styleName: "adjustableBlack")
+
+            if photoGlassStyle == "adjustableBlack" {
+                Divider()
+                Menu("Black Glass Opacity") {
+                    adjustableOpacityButton(title: "100%", value: 1.0)
+                    adjustableOpacityButton(title: "80%", value: 0.8)
+                    adjustableOpacityButton(title: "60%", value: 0.6)
+                    adjustableOpacityButton(title: "40%", value: 0.4)
+                }
+            }
+        }
+
+        Toggle("Disappear on Hover", isOn: $photoDisappearOnHover)
 
         Divider()
 
@@ -154,6 +179,54 @@ struct PhotoWindowView: View {
                 Text(title)
             }
         }
+    }
+
+    @ViewBuilder
+    private func photoGlassStyleButton(title: String, styleName: String) -> some View {
+        Button {
+            photoGlassStyle = styleName
+        } label: {
+            if photoGlassStyle == styleName {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func adjustableOpacityButton(title: String, value: Double) -> some View {
+        Button {
+            photoAdjustableBlackOpacity = value
+        } label: {
+            if abs(photoAdjustableBlackOpacity - value) < 0.001 {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+    }
+
+    private func migrateLegacyPhotoSettingsIfNeeded() {
+        guard !hasMigratedPhotoSettings else { return }
+        let defaults = UserDefaults.standard
+
+        if defaults.object(forKey: "photo.glassStyle") == nil,
+           let legacyStyle = defaults.string(forKey: "glassStyle") {
+            photoGlassStyle = legacyStyle
+        }
+
+        if defaults.object(forKey: "photo.adjustableBlackOpacity") == nil,
+           let legacyOpacity = defaults.object(forKey: "adjustableBlackOpacity") as? Double {
+            photoAdjustableBlackOpacity = min(max(legacyOpacity, 0.4), 1.0)
+        }
+
+        if defaults.object(forKey: "photo.disappearOnHover") == nil,
+           defaults.object(forKey: "disappearOnHover") != nil {
+            photoDisappearOnHover = defaults.bool(forKey: "disappearOnHover")
+        }
+
+        hasMigratedPhotoSettings = true
     }
 }
 

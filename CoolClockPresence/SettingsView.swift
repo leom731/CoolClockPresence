@@ -11,20 +11,13 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage("fontColorName") private var fontColorName: String = "green"
-    @AppStorage("showBattery") private var showBattery: Bool = true
-    @AppStorage("showSeconds") private var showSeconds: Bool = true
-    @AppStorage("clockPresence.alwaysOnTop") private var isAlwaysOnTop: Bool = true
-    @AppStorage("disappearOnHover") private var disappearOnHover: Bool = true
-    @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
-    @AppStorage("photoWindowOpacity") private var photoWindowOpacity: Double = 1.0
-    @AppStorage("use24HourFormat") private var use24HourFormat: Bool = false
-    @AppStorage("glassStyle") private var glassStyle: String = "liquid"
-    @AppStorage("adjustableBlackOpacity") private var adjustableBlackOpacity: Double = 0.82
-
+    @StateObject private var settingsManager = ClockSettingsManager.shared
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var showingPurchaseSheet = false
+    @AppStorage("photoWindowOpacity") private var photoWindowOpacity: Double = 1.0
+    private let worldClockManager = WorldClockManager.shared
     private let settingsColumnWidth: CGFloat = 260
+    private var mainSettings: ClockSettings { settingsManager.mainClockSettings }
 
     var body: some View {
         TabView {
@@ -70,15 +63,15 @@ struct SettingsView: View {
                             glassStyleButton(title: "Black Glass", styleName: "black")
                             glassStyleButton(title: "Adjustable Black Glass", styleName: "adjustableBlack")
 
-                            if glassStyle == "adjustableBlack" {
+                            if mainSettings.glassStyle == "adjustableBlack" {
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack {
                                         Text("Black Glass Opacity")
                                         Spacer()
-                                        Text("\(Int(adjustableBlackOpacity * 100))%")
+                                        Text("\(Int(mainSettings.adjustableBlackOpacity * 100))%")
                                             .foregroundColor(.secondary)
                                     }
-                                    Slider(value: $adjustableBlackOpacity, in: 0.4...1.0, step: 0.05)
+                                    Slider(value: doubleBinding(\.adjustableBlackOpacity), in: 0.4...1.0, step: 0.05)
                                 }
                                 .padding(.top, 6)
                             }
@@ -91,10 +84,10 @@ struct SettingsView: View {
                                 HStack {
                                     Text("Opacity")
                                     Spacer()
-                                    Text("\(Int(clockOpacity * 100))%")
+                                    Text("\(Int(mainSettings.clockOpacity * 100))%")
                                         .foregroundColor(.secondary)
                                 }
-                                Slider(value: $clockOpacity, in: 0.3...1.0, step: 0.05)
+                                Slider(value: doubleBinding(\.clockOpacity), in: 0.3...1.0, step: 0.05)
                             }
                         }
                     } else {
@@ -132,8 +125,8 @@ struct SettingsView: View {
                         Spacer()
                         VStack(alignment: .leading, spacing: 16) {
                             if purchaseManager.isPremium {
-                                Toggle("Show Seconds", isOn: $showSeconds)
-                                Toggle("Use 24-Hour Format", isOn: $use24HourFormat)
+                                Toggle("Show Seconds", isOn: booleanBinding(\.showSeconds))
+                                Toggle("Use 24-Hour Format", isOn: booleanBinding(\.use24HourFormat))
                             } else {
                                 Button("Show Seconds 🔒 Premium") {
                                     showingPurchaseSheet = true
@@ -144,7 +137,7 @@ struct SettingsView: View {
                             }
 
                             if purchaseManager.isPremium {
-                                Toggle("Show Battery", isOn: $showBattery)
+                                Toggle("Show Battery", isOn: booleanBinding(\.showBattery))
                             } else {
                                 Button("Show Battery 🔒 Premium") {
                                     showingPurchaseSheet = true
@@ -152,8 +145,8 @@ struct SettingsView: View {
                             }
 
                             if purchaseManager.isPremium {
-                                Toggle("Always on Top", isOn: $isAlwaysOnTop)
-                                Toggle("Disappear on Hover", isOn: $disappearOnHover)
+                                Toggle("Always on Top", isOn: booleanBinding(\.alwaysOnTop))
+                                Toggle("Disappear on Hover", isOn: booleanBinding(\.disappearOnHover))
                             } else {
                                 Button("Always on Top 🔒 Premium") {
                                     showingPurchaseSheet = true
@@ -223,12 +216,12 @@ struct SettingsView: View {
     @ViewBuilder
     private func glassStyleButton(title: String, styleName: String) -> some View {
         Button(action: {
-            glassStyle = styleName
+            updateMainAndWorld(\.glassStyle, value: styleName)
         }) {
             HStack {
                 Spacer()
                 Text(title)
-                if glassStyle == styleName {
+                if mainSettings.glassStyle == styleName {
                     Image(systemName: "checkmark")
                         .foregroundColor(.accentColor)
                         .padding(.leading, 4)
@@ -245,12 +238,12 @@ struct SettingsView: View {
     @ViewBuilder
     private func colorButton(title: String, colorName: String) -> some View {
         Button(action: {
-            fontColorName = colorName
+            updateMainAndWorld(\.fontColorName, value: colorName)
         }) {
             HStack {
                 Spacer()
                 Text(title)
-                if fontColorName == colorName {
+                if mainSettings.fontColorName == colorName {
                     Image(systemName: "checkmark")
                         .foregroundColor(.accentColor)
                         .padding(.leading, 4)
@@ -262,6 +255,29 @@ struct SettingsView: View {
         .buttonStyle(.plain)
         .foregroundColor(.primary)
         .frame(maxWidth: .infinity)
+    }
+
+    private func updateMainAndWorld<T>(_ keyPath: WritableKeyPath<ClockSettings, T>, value: T) {
+        settingsManager.updateMainClockProperty(keyPath, value: value)
+        worldClockManager.updateAllClockSettings(keyPath, value: value)
+    }
+
+    private func booleanBinding(_ keyPath: WritableKeyPath<ClockSettings, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { settingsManager.mainClockSettings[keyPath: keyPath] },
+            set: { newValue in
+                updateMainAndWorld(keyPath, value: newValue)
+            }
+        )
+    }
+
+    private func doubleBinding(_ keyPath: WritableKeyPath<ClockSettings, Double>) -> Binding<Double> {
+        Binding(
+            get: { settingsManager.mainClockSettings[keyPath: keyPath] },
+            set: { newValue in
+                updateMainAndWorld(keyPath, value: newValue)
+            }
+        )
     }
 }
 

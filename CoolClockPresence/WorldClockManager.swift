@@ -268,6 +268,26 @@ class WorldClockManager: ObservableObject {
         saveLocations()
     }
 
+    /// Apply a settings change to every saved world clock (used when global settings change).
+    func updateAllClockSettings<T>(_ keyPath: WritableKeyPath<ClockSettings, T>, value: T) {
+        savedLocations = savedLocations.map { location in
+            var updated = location
+            updated.settings[keyPath: keyPath] = value
+            return updated
+        }
+        saveLocations()
+    }
+
+    /// Apply a custom transformation to every saved world clock's settings.
+    func updateAllClockSettings(_ update: (inout ClockSettings) -> Void) {
+        savedLocations = savedLocations.map { location in
+            var updated = location
+            update(&updated.settings)
+            return updated
+        }
+        saveLocations()
+    }
+
     /// Replace the city/timezone for an existing clock without removing the window.
     /// Keeps the existing window position, size, settings, and docked state intact.
     func replaceLocation(id: UUID, with newLocation: WorldClockLocation) {

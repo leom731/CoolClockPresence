@@ -12,6 +12,7 @@ import SwiftUI
 import AppKit
 import CoreText
 import UniformTypeIdentifiers
+import Combine
 
 @main
 struct CoolClockPresenceApp: App {
@@ -78,9 +79,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var isUpdatingGlassStyleInline = false
     private var isBuildingMenu = false
     private var adjustableOpacityUpdateWorkItem: DispatchWorkItem?
+    private var cancellables = Set<AnyCancellable>()
     private let checkmarkImage = NSImage(named: NSImage.menuOnStateTemplateName) ?? NSImage(size: NSSize(width: 12, height: 12))
     private lazy var worldClockManager = WorldClockManager.shared
     private lazy var photoWindowManager = PhotoWindowManager.shared
+    private lazy var settingsManager = ClockSettingsManager.shared
     private var appStoreProductID: String? {
         // Prefer an Info.plist override so you can set this without code changes
         let rawID = (Bundle.main.object(forInfoDictionaryKey: "AppStoreProductID") as? String) ?? "0000000000"
@@ -192,6 +195,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Perform settings migration if needed
         ClockSettingsManager.shared.performMigrationIfNeeded()
 
+        // Keep menu state and window level in sync with settings changes
+        settingsManager.$mainClockSettings
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updateWindowLevel()
+                self?.updateMenuBarMenu()
+            }
+            .store(in: &cancellables)
+
         // Check if this is the first launch
         let hasCompletedOnboarding = defaults.bool(forKey: "hasCompletedOnboarding")
 
@@ -278,6 +290,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             menu.removeAllItems()
 
             let isPremium = self.defaults.bool(forKey: "isPremiumUnlocked")
+            let mainSettings = self.settingsManager.mainClockSettings
 
             // Show/Hide Clock Window
             let showClockItem = NSMenuItem(title: "Show Clock Window", action: #selector(self.toggleClockWindow), keyEquivalent: "")
@@ -407,23 +420,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             // Premium features
             if isPremium {
                 let showSecondsItem = NSMenuItem(title: "Show Seconds", action: #selector(self.toggleSeconds), keyEquivalent: "")
-                showSecondsItem.state = self.defaults.bool(forKey: "showSeconds") ? .on : .off
+                showSecondsItem.state = mainSettings.showSeconds ? .on : .off
                 menu.addItem(showSecondsItem)
 
                 let use24HourItem = NSMenuItem(title: "Use 24-Hour Format", action: #selector(self.toggleUse24HourFormat), keyEquivalent: "")
-                use24HourItem.state = self.defaults.bool(forKey: "use24HourFormat") ? .on : .off
+                use24HourItem.state = mainSettings.use24HourFormat ? .on : .off
                 menu.addItem(use24HourItem)
 
                 let showBatteryItem = NSMenuItem(title: "Show Battery", action: #selector(self.toggleBattery), keyEquivalent: "")
-                showBatteryItem.state = self.defaults.bool(forKey: "showBattery") ? .on : .off
+                showBatteryItem.state = mainSettings.showBattery ? .on : .off
                 menu.addItem(showBatteryItem)
 
                 let alwaysOnTopItem = NSMenuItem(title: "Always on Top", action: #selector(self.toggleAlwaysOnTop), keyEquivalent: "")
-                alwaysOnTopItem.state = self.defaults.bool(forKey: "clockPresence.alwaysOnTop") ? .on : .off
+                alwaysOnTopItem.state = mainSettings.alwaysOnTop ? .on : .off
                 menu.addItem(alwaysOnTopItem)
 
                 let disappearOnHoverItem = NSMenuItem(title: "Disappear on Hover", action: #selector(self.toggleDisappearOnHover), keyEquivalent: "")
-                disappearOnHoverItem.state = self.defaults.bool(forKey: "disappearOnHover") ? .on : .off
+                disappearOnHoverItem.state = mainSettings.disappearOnHover ? .on : .off
                 menu.addItem(disappearOnHoverItem)
             } else {
                 menu.addItem(NSMenuItem(title: "Show Seconds 🔒 Premium", action: #selector(self.showPurchaseView), keyEquivalent: ""))
@@ -476,6 +489,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
     }
 
+    /// Update both the main clock settings and every world clock with a single value change.
+    private func updateMainAndWorldClocks<T>(_ keyPath: WritableKeyPath<ClockSettings, T>, value: T) {
+        settingsManager.updateMainClockProperty(keyPath, value: value)
+        worldClockManager.updateAllClockSettings(keyPath, value: value)
+    }
+
     private func createFontColorMenuItem(title: String, colorName: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: #selector(changeFontColor(_:)), keyEquivalent: "")
         item.representedObject = colorName
@@ -484,7 +503,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         item.mixedStateImage = emptyCheckmarkImage
 
         // Add checkmark if this is the current color
-        let currentColor = defaults.string(forKey: "fontColorName") ?? "green"
+        let currentColor = settingsManager.mainClockSettings.fontColorName
         if currentColor == colorName {
             item.state = .on
         }
@@ -494,7 +513,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     @objc private func changeFontColor(_ sender: NSMenuItem) {
         if let colorName = sender.representedObject as? String {
-            defaults.set(colorName, forKey: "fontColorName")
+            updateMainAndWorldClocks(\.fontColorName, value: colorName)
             updateMenuBarMenu()
         }
     }
@@ -504,7 +523,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         item.representedObject = fontName
 
         // Add checkmark if this is the current font
-        let currentFont = defaults.string(forKey: "fontDesign") ?? "rounded"
+        let currentFont = settingsManager.mainClockSettings.fontDesign
         if currentFont == fontName {
             item.state = .on
         }
@@ -514,7 +533,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     @objc private func changeFontStyle(_ sender: NSMenuItem) {
         if let fontName = sender.representedObject as? String {
-            defaults.set(fontName, forKey: "fontDesign")
+            updateMainAndWorldClocks(\.fontDesign, value: fontName)
             updateMenuBarMenu()
         }
     }
@@ -524,7 +543,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         item.representedObject = styleName
 
         // Add checkmark if this is the current style
-        let currentStyle = defaults.string(forKey: "glassStyle") ?? "liquid"
+        let currentStyle = settingsManager.mainClockSettings.glassStyle
         if currentStyle == styleName {
             item.state = .on
         }
@@ -555,7 +574,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func refreshGlassStyleMenuUI(_ menu: NSMenu?, currentStyleOverride: String? = nil) {
         guard let menu else { return }
-        let currentStyle = currentStyleOverride ?? (defaults.string(forKey: "glassStyle") ?? "liquid")
+        let currentStyle = currentStyleOverride ?? settingsManager.mainClockSettings.glassStyle
 
         for item in menu.items {
             if let button = item.view?.subviews.compactMap({ $0 as? NSButton }).first {
@@ -584,7 +603,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     /// Applies a glass style change while keeping the Glass Style menu open and refreshed.
     private func updateGlassStyleInline(to styleName: String, menu: NSMenu?) {
         isUpdatingGlassStyleInline = true
-        defaults.set(styleName, forKey: "glassStyle")
+        updateMainAndWorldClocks(\.glassStyle, value: styleName)
         refreshGlassStyleMenuUI(menu, currentStyleOverride: styleName)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             self?.isUpdatingGlassStyleInline = false
@@ -598,7 +617,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         let button = NSButton(title: title, target: self, action: action)
         button.setButtonType(.radio)
-        button.state = (defaults.string(forKey: "glassStyle") ?? "liquid") == styleName ? .on : .off
+        button.state = (settingsManager.mainClockSettings.glassStyle) == styleName ? .on : .off
         button.identifier = NSUserInterfaceItemIdentifier(styleName)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
@@ -623,7 +642,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private func adjustableBlackOpacityMenuItem() -> NSMenuItem {
         let item = NSMenuItem()
         item.isEnabled = true
-        let currentStyle = defaults.string(forKey: "glassStyle") ?? "liquid"
+        let currentStyle = settingsManager.mainClockSettings.glassStyle
         let isAdjustableSelected = currentStyle == "adjustableBlack"
 
         let container = NSStackView()
@@ -643,7 +662,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         titleLabel.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
         titleLabel.textColor = isAdjustableSelected ? NSColor.labelColor : NSColor.secondaryLabelColor
 
-        let value = defaults.double(forKey: "adjustableBlackOpacity")
+        let value = settingsManager.mainClockSettings.adjustableBlackOpacity
         let valueLabel = NSTextField(labelWithString: "\(Int(value * 100))%")
         valueLabel.font = NSFont.systemFont(ofSize: 11)
         valueLabel.textColor = isAdjustableSelected ? NSColor.secondaryLabelColor : NSColor.tertiaryLabelColor
@@ -672,7 +691,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         adjustableOpacityUpdateWorkItem?.cancel()
 
         let clampedValue = max(0.4, min(1.0, sender.doubleValue))
-        defaults.set(clampedValue, forKey: "adjustableBlackOpacity")
+        updateMainAndWorldClocks(\.adjustableBlackOpacity, value: clampedValue)
         sender.doubleValue = clampedValue
 
         if let container = sender.superview as? NSStackView,
@@ -808,32 +827,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     @objc private func toggleSeconds() {
-        let current = defaults.bool(forKey: "showSeconds")
-        defaults.set(!current, forKey: "showSeconds")
+        let newValue = !settingsManager.mainClockSettings.showSeconds
+        updateMainAndWorldClocks(\.showSeconds, value: newValue)
         updateMenuBarMenu()
     }
 
     @objc private func toggleUse24HourFormat() {
-        let current = defaults.bool(forKey: "use24HourFormat")
-        defaults.set(!current, forKey: "use24HourFormat")
+        let newValue = !settingsManager.mainClockSettings.use24HourFormat
+        updateMainAndWorldClocks(\.use24HourFormat, value: newValue)
         updateMenuBarMenu()
     }
 
     @objc private func toggleBattery() {
-        let current = defaults.bool(forKey: "showBattery")
-        defaults.set(!current, forKey: "showBattery")
+        let newValue = !settingsManager.mainClockSettings.showBattery
+        updateMainAndWorldClocks(\.showBattery, value: newValue)
         updateMenuBarMenu()
     }
 
     @objc private func toggleAlwaysOnTop() {
-        let current = defaults.bool(forKey: "clockPresence.alwaysOnTop")
-        defaults.set(!current, forKey: "clockPresence.alwaysOnTop")
+        let newValue = !settingsManager.mainClockSettings.alwaysOnTop
+        updateMainAndWorldClocks(\.alwaysOnTop, value: newValue)
+        updateWindowLevel()
         updateMenuBarMenu()
     }
 
     @objc private func toggleDisappearOnHover() {
-        let current = defaults.bool(forKey: "disappearOnHover")
-        defaults.set(!current, forKey: "disappearOnHover")
+        let newValue = !settingsManager.mainClockSettings.disappearOnHover
+        updateMainAndWorldClocks(\.disappearOnHover, value: newValue)
         updateMenuBarMenu()
     }
 
@@ -1228,7 +1248,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     @objc private func updateWindowLevel() {
         guard let panel = window else { return }
-        let isAlwaysOnTop = UserDefaults.standard.bool(forKey: "clockPresence.alwaysOnTop")
+        let isAlwaysOnTop = settingsManager.mainClockSettings.alwaysOnTop
         // Use high window level for full screen compatibility when always on top
         panel.level = isAlwaysOnTop ? NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.popUpMenuWindow))) : .normal
     }

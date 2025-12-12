@@ -47,6 +47,10 @@ struct WorldClockView: View {
     private var glassStyle: String { currentLocation.settings.glassStyle }
     private var adjustableBlackOpacity: Double { currentLocation.settings.adjustableBlackOpacity }
     private var fontDesign: String { currentLocation.settings.fontDesign }
+    private var dockDragEnabled: Bool {
+        // Prevent dock-drag when the window is ignoring mouse events (disappear-on-hover)
+        isCommandKeyPressed && !(purchaseManager.isPremium && disappearOnHover && isHovering)
+    }
 
     private var appDelegate: AppDelegate? {
         NSApplication.shared.delegate as? AppDelegate
@@ -291,7 +295,7 @@ struct WorldClockView: View {
             .contentShape(Rectangle())
             .modifier(
                 DockDragModifier(
-                    isEnabled: isCommandKeyPressed,
+                    isEnabled: dockDragEnabled,
                     provider: {
                         let provider = NSItemProvider()
                         provider.registerDataRepresentation(forTypeIdentifier: "com.coolclock.worldclock", visibility: .all) { completion in
@@ -443,9 +447,6 @@ struct WorldClockView: View {
         .animation(.easeInOut(duration: 0.2), value: isHovering)
         .animation(.easeInOut(duration: 0.2), value: isCommandKeyPressed)
         .animation(.easeInOut(duration: 0.2), value: clockOpacity)
-        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
-            syncGlassStyleFromDefaults()
-        }
         .onReceive(worldClockManager.$savedLocations) { locations in
             if let updated = locations.first(where: { $0.id == location.id }) {
                 liveLocation = updated
@@ -459,7 +460,6 @@ struct WorldClockView: View {
             ) { _ in
                 timelineRefresh = UUID()
             }
-            syncGlassStyleFromDefaults()
         }
     }
 
@@ -514,30 +514,6 @@ struct WorldClockView: View {
         liveLocation = updated
     }
 
-    private func syncGlassStyleFromDefaults() {
-        let defaults = UserDefaults.standard
-        let newStyle = defaults.string(forKey: "glassStyle") ?? "liquid"
-        let rawOpacity = defaults.object(forKey: "adjustableBlackOpacity") as? Double ?? currentLocation.settings.adjustableBlackOpacity
-        let clampedOpacity = min(max(rawOpacity, 0.4), 1.0)
-
-        var updated = currentLocation
-        var changed = false
-
-        if updated.settings.glassStyle != newStyle {
-            updated.settings.glassStyle = newStyle
-            changed = true
-        }
-
-        if updated.settings.adjustableBlackOpacity != clampedOpacity {
-            updated.settings.adjustableBlackOpacity = clampedOpacity
-            changed = true
-        }
-
-        guard changed else { return }
-
-        WorldClockManager.shared.updateClockSettings(for: location.id, settings: updated.settings)
-        liveLocation = updated
-    }
 }
 
 private struct DockDragModifier: ViewModifier {
@@ -548,7 +524,9 @@ private struct DockDragModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if isEnabled {
-            content.onDrag(provider)
+            content.onDrag(provider) {
+                Color.clear.frame(width: 1, height: 1)
+            }
         } else {
             content
         }
