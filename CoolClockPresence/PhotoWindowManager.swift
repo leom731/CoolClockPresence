@@ -12,6 +12,13 @@ import SwiftUI
 import AppKit
 import Combine
 
+/// Snapshot of a deleted photo so it can be restored.
+struct PhotoDeletionSnapshot {
+    let item: PhotoItem
+    let index: Int
+    let imageData: Data?
+}
+
 /// Singleton manager for photo windows
 final class PhotoWindowManager: ObservableObject {
     static let shared = PhotoWindowManager()
@@ -69,14 +76,45 @@ final class PhotoWindowManager: ObservableObject {
     }
 
     func removePhoto(id: UUID) {
+        _ = removePhotoWithSnapshot(id: id)
+    }
+
+    func removePhotoWithSnapshot(id: UUID) -> PhotoDeletionSnapshot? {
+        guard let index = savedPhotos.firstIndex(where: { $0.id == id }) else { return nil }
+        let item = savedPhotos[index]
+
+        let fileURL = storageDirectory.appendingPathComponent(item.storedFileName)
+        let data = try? Data(contentsOf: fileURL)
+
         closePhotoWindow(for: id)
 
-        if let item = savedPhotos.first(where: { $0.id == id }) {
-            let url = storageDirectory.appendingPathComponent(item.storedFileName)
-            try? fileManager.removeItem(at: url)
+        if fileManager.fileExists(atPath: fileURL.path) {
+            try? fileManager.removeItem(at: fileURL)
         }
 
         savedPhotos.removeAll { $0.id == id }
+        savePhotos()
+
+        return PhotoDeletionSnapshot(item: item, index: index, imageData: data)
+    }
+
+    func restorePhoto(from snapshot: PhotoDeletionSnapshot) {
+        guard let data = snapshot.imageData else {
+            print("⚠️ Unable to restore photo: missing image data.")
+            return
+        }
+
+        let destinationURL = storageDirectory.appendingPathComponent(snapshot.item.storedFileName)
+
+        do {
+            try data.write(to: destinationURL, options: .atomic)
+        } catch {
+            print("⚠️ Failed to restore photo image: \(error)")
+            return
+        }
+
+        let insertionIndex = min(snapshot.index, savedPhotos.count)
+        savedPhotos.insert(snapshot.item, at: insertionIndex)
         savePhotos()
     }
 

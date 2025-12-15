@@ -15,6 +15,8 @@ import UniformTypeIdentifiers
 struct ManagePhotosView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var manager = PhotoWindowManager.shared
+    @State private var deletionSnapshot: PhotoDeletionSnapshot?
+    @State private var undoWorkItem: DispatchWorkItem?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -56,7 +58,7 @@ struct ManagePhotosView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(manager.savedPhotos) { photo in
-                            ManagePhotoRow(photo: photo)
+                            ManagePhotoRow(photo: photo, onRemove: handleDelete)
                             Divider()
                         }
                     }
@@ -64,6 +66,19 @@ struct ManagePhotosView: View {
             }
         }
         .frame(width: 520, height: 420)
+        .overlay(alignment: .bottom) {
+            if let snapshot = deletionSnapshot {
+                UndoBannerView(
+                    title: "Photo deleted",
+                    subtitle: snapshot.item.displayName,
+                    undoAction: undoDeletion,
+                    dismissAction: dismissUndoBanner
+                )
+                .padding()
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.9), value: deletionSnapshot != nil)
     }
 
     private func showPhotoPicker() {
@@ -79,10 +94,51 @@ struct ManagePhotosView: View {
             manager.addPhoto(from: url)
         }
     }
+
+    private func handleDelete(_ photo: PhotoItem) {
+        guard let snapshot = manager.removePhotoWithSnapshot(id: photo.id) else { return }
+
+        undoWorkItem?.cancel()
+        withAnimation {
+            deletionSnapshot = snapshot
+        }
+
+        scheduleUndoDismiss()
+    }
+
+    private func undoDeletion() {
+        undoWorkItem?.cancel()
+        if let snapshot = deletionSnapshot {
+            manager.restorePhoto(from: snapshot)
+        }
+
+        withAnimation {
+            deletionSnapshot = nil
+        }
+    }
+
+    private func dismissUndoBanner() {
+        undoWorkItem?.cancel()
+        withAnimation {
+            deletionSnapshot = nil
+        }
+    }
+
+    private func scheduleUndoDismiss() {
+        let workItem = DispatchWorkItem {
+            withAnimation {
+                deletionSnapshot = nil
+            }
+        }
+
+        undoWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: workItem)
+    }
 }
 
 struct ManagePhotoRow: View {
     let photo: PhotoItem
+    let onRemove: (PhotoItem) -> Void
     @ObservedObject private var manager = PhotoWindowManager.shared
 
     private var isOpen: Bool {
@@ -137,7 +193,7 @@ struct ManagePhotoRow: View {
                 .help(isOpen ? "Hide" : "Show")
 
                 Button(action: {
-                    manager.removePhoto(id: photo.id)
+                    onRemove(photo)
                 }) {
                     Image(systemName: "trash")
                         .foregroundColor(.red)
@@ -148,6 +204,49 @@ struct ManagePhotoRow: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 12)
+    }
+}
+
+private struct UndoBannerView: View {
+    let title: String
+    let subtitle: String
+    let undoAction: () -> Void
+    let dismissAction: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Button("Undo") {
+                undoAction()
+            }
+            .buttonStyle(.borderedProminent)
+
+            Button(action: dismissAction) {
+                Image(systemName: "xmark")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.92))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+        )
+        .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 8)
     }
 }
 
