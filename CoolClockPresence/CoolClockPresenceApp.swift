@@ -84,6 +84,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private lazy var worldClockManager = WorldClockManager.shared
     private lazy var photoWindowManager = PhotoWindowManager.shared
     private lazy var settingsManager = ClockSettingsManager.shared
+    private let preDockWidthKey = "preDockWindowWidth"
+    private let preDockHeightKey = "preDockWindowHeight"
+    private var windowSizeBeforeDocking: CGSize?
+    private var lastDockedCount: Int = 0
     private var appStoreProductID: String? {
         // Prefer an Info.plist override so you can set this without code changes
         let rawID = (Bundle.main.object(forInfoDictionaryKey: "AppStoreProductID") as? String) ?? "0000000000"
@@ -1133,6 +1137,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         hostingView.layer?.masksToBounds = true
 
         self.window = panel
+        lastDockedCount = worldClockManager.dockedClocks.count
+        windowSizeBeforeDocking = storedPreDockSize()
+
+        if lastDockedCount == 0 {
+            capturePreDockSize(from: panel.frame.size)
+        }
 
         // Restore saved position, preset, or default top center
         let savedX = defaults.double(forKey: "windowX")
@@ -1269,6 +1279,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let size = panel.frame.size
         defaults.set(size.width, forKey: "windowWidth")
         defaults.set(size.height, forKey: "windowHeight")
+
+        // Keep track of the preferred undocked size so we can return to it after docking
+        if worldClockManager.dockedClocks.isEmpty {
+            capturePreDockSize(from: CGSize(width: size.width, height: size.height))
+        }
     }
 
     // MARK: - Docking Management
@@ -1276,6 +1291,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     @objc private func handleDockingChanged() {
         updateMainWindowConstraints()
         updateMenuBarMenu()
+    }
+
+    private func capturePreDockSize(from size: CGSize) {
+        windowSizeBeforeDocking = size
+        defaults.set(size.width, forKey: preDockWidthKey)
+        defaults.set(size.height, forKey: preDockHeightKey)
+    }
+
+    private func storedPreDockSize() -> CGSize? {
+        let width = defaults.double(forKey: preDockWidthKey)
+        let height = defaults.double(forKey: preDockHeightKey)
+
+        if width > 0 && height > 0 {
+            return CGSize(width: width, height: height)
+        }
+
+        return nil
     }
 
     private func updateMainWindowConstraints() {
@@ -1286,17 +1318,39 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let dockedClockHeight: CGFloat = 70  // Approximate height per docked clock (larger size)
         let minHeight = baseMinHeight + CGFloat(dockedCount) * dockedClockHeight
 
+        // Remember the last undocked size right before we expand for the first docked clock
+        if dockedCount > 0 && lastDockedCount == 0 {
+            capturePreDockSize(from: panel.frame.size)
+        }
+
         let currentContentMin = panel.contentMinSize
         panel.contentMinSize = CGSize(width: currentContentMin.width, height: minHeight)
 
-        // Optionally auto-resize to fit content if window is too small
         let currentFrame = panel.frame
-        if currentFrame.height < minHeight {
+
+        if dockedCount == 0 {
+            // Restore the window to the size it had before any clocks were docked
+            let fallbackSize = CGSize(width: currentFrame.width, height: 100)
+            let preDockSize = windowSizeBeforeDocking ?? storedPreDockSize() ?? fallbackSize
+            let targetWidth = max(currentContentMin.width, preDockSize.width)
+            let targetHeight = max(minHeight, preDockSize.height)
+
+            // Only adjust if we're not already at the intended size
+            if abs(currentFrame.width - targetWidth) > 0.5 || abs(currentFrame.height - targetHeight) > 0.5 {
+                var newFrame = currentFrame
+                newFrame.size = CGSize(width: targetWidth, height: targetHeight)
+                newFrame.origin.y = currentFrame.maxY - targetHeight  // Keep top edge in place
+                panel.setFrame(newFrame, display: true, animate: true)
+            }
+        } else if currentFrame.height < minHeight {
+            // Grow the window to fit newly docked clocks if it's currently too small
             var newFrame = currentFrame
             newFrame.size.height = minHeight
             newFrame.origin.y = currentFrame.maxY - minHeight  // Keep top edge in place
             panel.setFrame(newFrame, display: true, animate: true)
         }
+
+        lastDockedCount = dockedCount
     }
 
     // MARK: - World Clock Management
