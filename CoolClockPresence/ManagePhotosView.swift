@@ -17,6 +17,7 @@ struct ManagePhotosView: View {
     @StateObject private var manager = PhotoWindowManager.shared
     @State private var deletionSnapshot: PhotoDeletionSnapshot?
     @State private var undoWorkItem: DispatchWorkItem?
+    @State private var draggingPhotoID: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,8 +60,30 @@ struct ManagePhotosView: View {
                     LazyVStack(spacing: 0) {
                         ForEach(manager.savedPhotos) { photo in
                             ManagePhotoRow(photo: photo, onRemove: handleDelete)
+                                .onDrag {
+                                    draggingPhotoID = photo.id
+                                    return NSItemProvider(object: photo.id.uuidString as NSString)
+                                }
+                                .onDrop(
+                                    of: [UTType.text],
+                                    delegate: PhotoDropDelegate(
+                                        target: photo,
+                                        manager: manager,
+                                        draggingPhotoID: $draggingPhotoID
+                                    )
+                                )
                             Divider()
                         }
+                        Color.clear
+                            .frame(height: 12)
+                            .onDrop(
+                                of: [UTType.text],
+                                delegate: PhotoDropDelegate(
+                                    target: nil,
+                                    manager: manager,
+                                    draggingPhotoID: $draggingPhotoID
+                                )
+                            )
                     }
                 }
             }
@@ -247,6 +270,33 @@ private struct UndoBannerView: View {
                 )
         )
         .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 8)
+    }
+}
+
+private struct PhotoDropDelegate: DropDelegate {
+    let target: PhotoItem?
+    let manager: PhotoWindowManager
+    @Binding var draggingPhotoID: UUID?
+
+    func dropEntered(info: DropInfo) {
+        guard let draggingPhotoID else { return }
+
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            if let target {
+                manager.movePhoto(draggedID: draggingPhotoID, to: target.id)
+            } else {
+                manager.movePhotoToEnd(draggingPhotoID)
+            }
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingPhotoID = nil
+        return true
     }
 }
 

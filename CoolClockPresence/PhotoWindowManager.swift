@@ -118,6 +118,31 @@ final class PhotoWindowManager: ObservableObject {
         savePhotos()
     }
 
+    // MARK: - Reordering
+
+    func movePhoto(draggedID: UUID, to targetID: UUID) {
+        guard let fromIndex = savedPhotos.firstIndex(where: { $0.id == draggedID }),
+              let targetIndex = savedPhotos.firstIndex(where: { $0.id == targetID }) else { return }
+
+        movePhoto(from: fromIndex, to: targetIndex)
+    }
+
+    func movePhotoToEnd(_ id: UUID) {
+        guard let fromIndex = savedPhotos.firstIndex(where: { $0.id == id }) else { return }
+        let item = savedPhotos.remove(at: fromIndex)
+        savedPhotos.append(item)
+        savePhotos()
+    }
+
+    private func movePhoto(from fromIndex: Int, to targetIndex: Int) {
+        guard fromIndex != targetIndex else { return }
+
+        let item = savedPhotos.remove(at: fromIndex)
+        let insertionIndex = targetIndex > fromIndex ? targetIndex - 1 : targetIndex
+        savedPhotos.insert(item, at: insertionIndex)
+        savePhotos()
+    }
+
     // MARK: - Window Management
 
     func openPhotoWindow(for photo: PhotoItem) {
