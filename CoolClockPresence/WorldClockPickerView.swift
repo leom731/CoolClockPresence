@@ -246,8 +246,32 @@ struct ManageLocationRow: View {
     let location: WorldClockLocation
     @StateObject private var manager = WorldClockManager.shared
 
-    private var isOpen: Bool {
+    private var currentLocation: WorldClockLocation? {
+        manager.savedLocations.first(where: { $0.id == location.id })
+    }
+
+    private var isDocked: Bool {
+        currentLocation?.isDocked ?? location.isDocked
+    }
+
+    private var isWindowOpen: Bool {
         manager.isLocationOpen(id: location.id)
+    }
+
+    private var isVisible: Bool {
+        isDocked || isWindowOpen
+    }
+
+    private var eyeHelpText: String {
+        if isDocked {
+            return "Remove from dock"
+        }
+
+        if isWindowOpen {
+            return "Close world clock window"
+        }
+
+        return "Dock to main clock"
     }
 
     var body: some View {
@@ -266,13 +290,13 @@ struct ManageLocationRow: View {
             HStack(spacing: 12) {
                 // Show/Hide button
                 Button(action: {
-                    manager.toggleWorldClock(for: location)
+                    handleVisibilityToggle()
                 }) {
-                    Image(systemName: isOpen ? "eye.fill" : "eye.slash.fill")
-                        .foregroundColor(isOpen ? .green : .secondary)
+                    Image(systemName: isVisible ? "eye.fill" : "eye.slash.fill")
+                        .foregroundColor(isVisible ? .green : .secondary)
                 }
                 .buttonStyle(.plain)
-                .help(isOpen ? "Hide" : "Show")
+                .help(eyeHelpText)
 
                 // Remove button
                 Button(action: {
@@ -287,6 +311,16 @@ struct ManageLocationRow: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 12)
+    }
+
+    private func handleVisibilityToggle() {
+        if isDocked || isWindowOpen {
+            // Remove from dock or close the floating window without changing modes
+            manager.hideLocation(id: location.id)
+        } else {
+            // If not visible anywhere, dock it to the main clock
+            manager.dockClock(for: location.id)
+        }
     }
 }
 
