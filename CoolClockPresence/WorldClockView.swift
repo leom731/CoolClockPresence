@@ -320,8 +320,8 @@ struct WorldClockView: View {
                     WorldClockManager.shared.closeWorldClock(for: location.id)
                 }
 
-                Button("Remove World Clock") {
-                    WorldClockManager.shared.removeLocation(id: location.id)
+                Button("Hide World Clock") {
+                    WorldClockManager.shared.hideLocation(id: location.id)
                 }
 
                 Divider()

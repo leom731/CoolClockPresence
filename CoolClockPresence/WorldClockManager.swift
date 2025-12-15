@@ -80,6 +80,23 @@ class WorldClockManager: ObservableObject {
         }
     }
 
+    /// Hide a saved location without deleting it so it can be reopened later.
+    /// Used when the user dismisses a docked clock or closes a world clock window.
+    func hideLocation(id: UUID) {
+        guard let index = savedLocations.firstIndex(where: { $0.id == id }) else { return }
+
+        let wasDocked = savedLocations[index].isDocked
+        savedLocations[index].isDocked = false
+
+        // Close any open window for this clock
+        closeWorldClock(for: id)
+        saveLocations()
+
+        if wasDocked {
+            NotificationCenter.default.post(name: NSNotification.Name("WorldClockDockingChanged"), object: nil)
+        }
+    }
+
     /// Update location window position and size
     func updateLocationWindow(id: UUID, x: Double, y: Double, width: Double, height: Double) {
         if let index = savedLocations.firstIndex(where: { $0.id == id }) {

@@ -250,8 +250,8 @@ struct DockedWorldClockView: View {
                 WorldClockManager.shared.undockClock(for: location.id)
             }
 
-            Button("Remove World Clock") {
-                WorldClockManager.shared.removeLocation(id: location.id)
+            Button("Remove from Dock") {
+                worldClockManager.hideLocation(id: location.id)
             }
 
             Divider()
