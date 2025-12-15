@@ -129,23 +129,6 @@ struct PhotoWindowView: View {
 
         Divider()
 
-        Menu("Glass Style") {
-            photoGlassStyleButton(title: "Liquid Glass", styleName: "liquid")
-            photoGlassStyleButton(title: "Clear Glass", styleName: "clear")
-            photoGlassStyleButton(title: "Black Glass", styleName: "black")
-            photoGlassStyleButton(title: "Adjustable Black Glass", styleName: "adjustableBlack")
-
-            if photoGlassStyle == "adjustableBlack" {
-                Divider()
-                Menu("Black Glass Opacity") {
-                    adjustableOpacityButton(title: "100%", value: 1.0)
-                    adjustableOpacityButton(title: "80%", value: 0.8)
-                    adjustableOpacityButton(title: "60%", value: 0.6)
-                    adjustableOpacityButton(title: "40%", value: 0.4)
-                }
-            }
-        }
-
         Toggle("Disappear on Hover", isOn: $photoDisappearOnHover)
 
         Divider()
@@ -174,32 +157,6 @@ struct PhotoWindowView: View {
             photoWindowOpacity = value
         } label: {
             if abs(photoWindowOpacity - value) < 0.001 {
-                Label(title, systemImage: "checkmark")
-            } else {
-                Text(title)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func photoGlassStyleButton(title: String, styleName: String) -> some View {
-        Button {
-            photoGlassStyle = styleName
-        } label: {
-            if photoGlassStyle == styleName {
-                Label(title, systemImage: "checkmark")
-            } else {
-                Text(title)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func adjustableOpacityButton(title: String, value: Double) -> some View {
-        Button {
-            photoAdjustableBlackOpacity = value
-        } label: {
-            if abs(photoAdjustableBlackOpacity - value) < 0.001 {
                 Label(title, systemImage: "checkmark")
             } else {
                 Text(title)
