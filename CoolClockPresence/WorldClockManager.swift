@@ -278,6 +278,47 @@ class WorldClockManager: ObservableObject {
         NotificationCenter.default.post(name: NSNotification.Name("WorldClockDockingChanged"), object: nil)
     }
 
+    // MARK: - Reordering
+
+    /// Move a saved world clock relative to another clock (used by drag-and-drop in Manage view).
+    func moveLocation(draggedID: UUID, to targetID: UUID) {
+        guard let fromIndex = savedLocations.firstIndex(where: { $0.id == draggedID }),
+              let targetIndex = savedLocations.firstIndex(where: { $0.id == targetID }) else { return }
+
+        moveLocation(from: fromIndex, to: targetIndex)
+    }
+
+    /// Move a saved world clock to the end of the list (drop below the final item).
+    func moveLocationToEnd(_ id: UUID) {
+        guard let fromIndex = savedLocations.firstIndex(where: { $0.id == id }) else { return }
+        let item = savedLocations.remove(at: fromIndex)
+        savedLocations.append(item)
+        resequenceDockedOrders()
+        saveLocations()
+        NotificationCenter.default.post(name: NSNotification.Name("WorldClockDockingChanged"), object: nil)
+    }
+
+    private func moveLocation(from fromIndex: Int, to targetIndex: Int) {
+        guard fromIndex != targetIndex else { return }
+
+        let item = savedLocations.remove(at: fromIndex)
+        let insertionIndex = targetIndex > fromIndex ? targetIndex - 1 : targetIndex
+        savedLocations.insert(item, at: insertionIndex)
+        resequenceDockedOrders()
+        saveLocations()
+        NotificationCenter.default.post(name: NSNotification.Name("WorldClockDockingChanged"), object: nil)
+    }
+
+    /// Ensure docked clocks keep a stable, contiguous order after reordering.
+    private func resequenceDockedOrders() {
+        var dockedOrderValue = 0
+
+        for (index, location) in savedLocations.enumerated() where location.isDocked {
+            savedLocations[index].dockedOrder = dockedOrderValue
+            dockedOrderValue += 1
+        }
+    }
+
     /// Update settings for a specific world clock
     func updateClockSettings(for locationID: UUID, settings: ClockSettings) {
         guard let index = savedLocations.firstIndex(where: { $0.id == locationID }) else { return }

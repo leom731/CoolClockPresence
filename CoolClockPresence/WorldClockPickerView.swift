@@ -9,6 +9,8 @@
 
 #if os(macOS)
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 struct WorldClockPickerView: View {
     @Environment(\.dismiss) private var dismiss
@@ -192,6 +194,7 @@ struct ManageWorldClocksView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var manager = WorldClockManager.shared
     @State private var showingPicker = false
+    @State private var draggingLocationID: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -235,8 +238,30 @@ struct ManageWorldClocksView: View {
                     LazyVStack(spacing: 0) {
                         ForEach(manager.savedLocations) { location in
                             ManageLocationRow(location: location)
+                                .onDrag {
+                                    draggingLocationID = location.id
+                                    return NSItemProvider(object: location.id.uuidString as NSString)
+                                }
+                                .onDrop(
+                                    of: [UTType.text],
+                                    delegate: WorldClockDropDelegate(
+                                        target: location,
+                                        manager: manager,
+                                        draggingLocationID: $draggingLocationID
+                                    )
+                                )
                             Divider()
                         }
+                        Color.clear
+                            .frame(height: 12)
+                            .onDrop(
+                                of: [UTType.text],
+                                delegate: WorldClockDropDelegate(
+                                    target: nil,
+                                    manager: manager,
+                                    draggingLocationID: $draggingLocationID
+                                )
+                            )
                     }
                 }
             }
@@ -329,6 +354,35 @@ struct ManageLocationRow: View {
             // If not visible anywhere, dock it to the main clock
             manager.dockClock(for: location.id)
         }
+    }
+}
+
+// MARK: - Drag and Drop
+
+private struct WorldClockDropDelegate: DropDelegate {
+    let target: WorldClockLocation?
+    let manager: WorldClockManager
+    @Binding var draggingLocationID: UUID?
+
+    func dropEntered(info: DropInfo) {
+        guard let draggingLocationID else { return }
+
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            if let target {
+                manager.moveLocation(draggedID: draggingLocationID, to: target.id)
+            } else {
+                manager.moveLocationToEnd(draggingLocationID)
+            }
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingLocationID = nil
+        return true
     }
 }
 
