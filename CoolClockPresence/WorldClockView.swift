@@ -324,6 +324,10 @@ struct WorldClockView: View {
                     WorldClockManager.shared.hideLocation(id: location.id)
                 }
 
+                Button("Manage World Clocks...") {
+                    performMenuAction(#selector(AppDelegate.showManageWorldClocks))
+                }
+
                 Divider()
 
                 Menu("Font Color") {

@@ -254,6 +254,10 @@ struct DockedWorldClockView: View {
                 worldClockManager.hideLocation(id: location.id)
             }
 
+            Button("Manage World Clocks...") {
+                performMenuAction(#selector(AppDelegate.showManageWorldClocks))
+            }
+
             Divider()
 
             if purchaseManager.isPremium {
@@ -299,6 +303,20 @@ struct DockedWorldClockView: View {
         var updated = currentLocation
         updated.settings = newSettings
         liveLocation = updated
+    }
+
+    private func performMenuAction(_ selector: Selector) {
+        let send = {
+            if !NSApp.sendAction(selector, to: NSApp.delegate, from: nil) {
+                NSApp.sendAction(selector, to: nil, from: nil)
+            }
+        }
+
+        if Thread.isMainThread {
+            send()
+        } else {
+            DispatchQueue.main.async(execute: send)
+        }
     }
 }
 
