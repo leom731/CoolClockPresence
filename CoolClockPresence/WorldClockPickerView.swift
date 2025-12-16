@@ -191,15 +191,20 @@ struct LocationRow: View {
 struct ManageWorldClocksView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var manager = WorldClockManager.shared
+    @State private var showingPicker = false
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            HStack {
+            HStack(spacing: 12) {
                 Text("Manage World Clocks")
                     .font(.title2)
                     .fontWeight(.bold)
                 Spacer()
+                Button("Add Location…") {
+                    showingPicker = true
+                }
+                .buttonStyle(.borderedProminent)
                 Button("Done") {
                     dismiss()
                 }
@@ -237,6 +242,9 @@ struct ManageWorldClocksView: View {
             }
         }
         .frame(width: 500, height: 400)
+        .sheet(isPresented: $showingPicker) {
+            WorldClockPickerView()
+        }
     }
 }
 
