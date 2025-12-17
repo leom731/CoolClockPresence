@@ -151,6 +151,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             "glassStyle": "liquid",
             "adjustableBlackOpacity": 0.82,
             "photoWindowOpacity": 1.0,
+            "worldClockDimmed": true,
             "windowPositionPreset": ClockWindowPosition.topCenter.rawValue
         ])
         lastKnownWindowPresetValue = defaults.string(forKey: "windowPositionPreset") ?? ClockWindowPosition.topCenter.rawValue
@@ -376,6 +377,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             // World Clocks submenu
             let worldClocksMenu = NSMenu()
             worldClocksMenu.addItem(NSMenuItem(title: "Add World Clock...", action: #selector(self.showWorldClockPicker), keyEquivalent: ""))
+            let dimWorldClockItem = NSMenuItem(title: "Dim World Clock", action: #selector(self.toggleWorldClockDimming), keyEquivalent: "")
+            dimWorldClockItem.state = self.defaults.bool(forKey: "worldClockDimmed") ? .on : .off
+            worldClocksMenu.addItem(dimWorldClockItem)
 
             if !self.worldClockManager.savedLocations.isEmpty {
                 worldClocksMenu.addItem(NSMenuItem.separator())
@@ -858,6 +862,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     @objc private func toggleDisappearOnHover() {
         let newValue = !settingsManager.mainClockSettings.disappearOnHover
         updateMainAndWorldClocks(\.disappearOnHover, value: newValue)
+        updateMenuBarMenu()
+    }
+
+    @objc private func toggleWorldClockDimming() {
+        let newValue = !defaults.bool(forKey: "worldClockDimmed")
+        defaults.set(newValue, forKey: "worldClockDimmed")
         updateMenuBarMenu()
     }
 

@@ -18,12 +18,15 @@ struct DockedWorldClockView: View {
     let scale: CGFloat
 
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("worldClockDimmed") private var isWorldClockDimmed: Bool = true
     @StateObject private var settingsManager = ClockSettingsManager.shared
     @StateObject private var worldClockManager = WorldClockManager.shared
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var timelineRefresh: UUID = UUID()
     @State private var liveLocation: WorldClockLocation?
-    private let timeOpacity: Double = 0.55
+    private var timeOpacity: Double {
+        isWorldClockDimmed ? 0.55 : 0.92
+    }
 
     private var currentLocation: WorldClockLocation {
         liveLocation ?? location
@@ -241,7 +244,7 @@ struct DockedWorldClockView: View {
             }
             .id(timelineRefresh)
 
-            // Location name (same brightness as clock)
+            // Location name (constant brightness)
             Text(currentLocation.displayName)
                 .font(locationFont(for: scale))
                 .foregroundStyle(fontColor.opacity(0.92))
@@ -257,6 +260,16 @@ struct DockedWorldClockView: View {
 
             Button("Manage World Clocks...") {
                 performMenuAction(#selector(AppDelegate.showManageWorldClocks))
+            }
+
+            Button {
+                isWorldClockDimmed.toggle()
+            } label: {
+                if isWorldClockDimmed {
+                    Label("Dim World Clock", systemImage: "checkmark")
+                } else {
+                    Text("Dim World Clock")
+                }
             }
 
             Divider()

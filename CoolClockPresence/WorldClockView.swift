@@ -18,6 +18,7 @@ struct WorldClockView: View {
     let timeZone: TimeZone
 
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("worldClockDimmed") private var isWorldClockDimmed: Bool = true
     @StateObject private var worldClockManager = WorldClockManager.shared
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
@@ -77,7 +78,9 @@ struct WorldClockView: View {
     }
 
     private let baseSize = CGSize(width: 240, height: 100)
-    private let timeOpacity: Double = 0.55
+    private var timeOpacity: Double {
+        isWorldClockDimmed ? 0.55 : 0.92
+    }
 
     private func scale(for size: CGSize) -> CGFloat {
         let widthScale = size.width / baseSize.width
@@ -327,6 +330,16 @@ struct WorldClockView: View {
 
                 Button("Manage World Clocks...") {
                     performMenuAction(#selector(AppDelegate.showManageWorldClocks))
+                }
+
+                Button {
+                    isWorldClockDimmed.toggle()
+                } label: {
+                    if isWorldClockDimmed {
+                        Label("Dim World Clock", systemImage: "checkmark")
+                    } else {
+                        Text("Dim World Clock")
+                    }
                 }
 
                 Divider()
