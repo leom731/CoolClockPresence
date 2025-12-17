@@ -1348,6 +1348,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             newFrame.size.height = minHeight
             newFrame.origin.y = currentFrame.maxY - minHeight  // Keep top edge in place
             panel.setFrame(newFrame, display: true, animate: true)
+        } else if lastDockedCount > dockedCount && currentFrame.height > minHeight {
+            // Shrink as docked clocks are removed while keeping the main clock position
+            var newFrame = currentFrame
+            newFrame.size.height = minHeight
+            newFrame.origin.y = currentFrame.maxY - minHeight  // Keep top edge in place
+            panel.setFrame(newFrame, display: true, animate: true)
         }
 
         lastDockedCount = dockedCount

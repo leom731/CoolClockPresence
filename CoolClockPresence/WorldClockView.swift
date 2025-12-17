@@ -77,6 +77,7 @@ struct WorldClockView: View {
     }
 
     private let baseSize = CGSize(width: 240, height: 100)
+    private let timeOpacity: Double = 0.55
 
     private func scale(for size: CGSize) -> CGFloat {
         let widthScale = size.width / baseSize.width
@@ -192,14 +193,14 @@ struct WorldClockView: View {
                                 OutlinedText(
                                     text: timeComponents(from: context.date).hours,
                                     font: clockFont(for: currentScale),
-                                    fillColor: fontColor.opacity(0.92),
+                                    fillColor: fontColor.opacity(timeOpacity),
                                     strokeColor: strokeColor,
                                     lineWidth: max(0.5, 1.1 * currentScale)
                                 )
                                 BlinkingColon(
                                     text: timeComponents(from: context.date).separator,
                                     font: clockFont(for: currentScale),
-                                    fillColor: fontColor,
+                                    fillColor: fontColor.opacity(timeOpacity),
                                     strokeColor: strokeColor,
                                     lineWidth: max(0.5, 1.1 * currentScale),
                                     shouldBlink: !shouldShowSeconds,
@@ -208,7 +209,7 @@ struct WorldClockView: View {
                                 OutlinedText(
                                     text: timeComponents(from: context.date).minutes,
                                     font: clockFont(for: currentScale),
-                                    fillColor: fontColor.opacity(0.92),
+                                    fillColor: fontColor.opacity(timeOpacity),
                                     strokeColor: strokeColor,
                                     lineWidth: max(0.5, 1.1 * currentScale)
                                 )
@@ -216,14 +217,14 @@ struct WorldClockView: View {
                                     OutlinedText(
                                         text: ":",
                                         font: clockFont(for: currentScale),
-                                        fillColor: fontColor.opacity(0.92),
+                                        fillColor: fontColor.opacity(timeOpacity),
                                         strokeColor: strokeColor,
                                         lineWidth: max(0.5, 1.1 * currentScale)
                                     )
                                     OutlinedText(
                                         text: secondsPart,
                                         font: clockFont(for: currentScale),
-                                        fillColor: fontColor.opacity(0.92),
+                                        fillColor: fontColor.opacity(timeOpacity),
                                         strokeColor: strokeColor,
                                         lineWidth: max(0.5, 1.1 * currentScale)
                                     )
@@ -232,7 +233,7 @@ struct WorldClockView: View {
                                     OutlinedText(
                                         text: ampm,
                                         font: .system(size: 20 * currentScale, weight: .medium, design: .rounded),
-                                        fillColor: fontColor.opacity(0.92),
+                                        fillColor: fontColor.opacity(timeOpacity),
                                         strokeColor: strokeColor,
                                         lineWidth: max(0.5, 1.1 * currentScale)
                                     )
@@ -246,11 +247,11 @@ struct WorldClockView: View {
                                 Text(timeComponents(from: context.date).hours)
                                     .font(clockFont(for: currentScale))
                                     .monospacedDigit()
-                                    .foregroundStyle(fontColor.opacity(0.92))
+                                    .foregroundStyle(fontColor.opacity(timeOpacity))
                                 BlinkingColon(
                                     text: timeComponents(from: context.date).separator,
                                     font: clockFont(for: currentScale),
-                                    fillColor: fontColor,
+                                    fillColor: fontColor.opacity(timeOpacity),
                                     strokeColor: .clear,
                                     lineWidth: 0,
                                     shouldBlink: !shouldShowSeconds,
@@ -259,21 +260,21 @@ struct WorldClockView: View {
                                 Text(timeComponents(from: context.date).minutes)
                                     .font(clockFont(for: currentScale))
                                     .monospacedDigit()
-                                    .foregroundStyle(fontColor.opacity(0.92))
+                                    .foregroundStyle(fontColor.opacity(timeOpacity))
                                 if let secondsPart = timeComponents(from: context.date).seconds {
                                     Text(":")
                                         .font(clockFont(for: currentScale))
                                         .monospacedDigit()
-                                        .foregroundStyle(fontColor.opacity(0.92))
+                                        .foregroundStyle(fontColor.opacity(timeOpacity))
                                     Text(secondsPart)
                                         .font(clockFont(for: currentScale))
                                         .monospacedDigit()
-                                        .foregroundStyle(fontColor.opacity(0.92))
+                                        .foregroundStyle(fontColor.opacity(timeOpacity))
                                 }
                                 if let ampm = timeComponents(from: context.date).ampm {
                                     Text(ampm)
                                         .font(.system(size: 20 * currentScale, weight: .medium, design: .rounded))
-                                        .foregroundStyle(fontColor.opacity(0.92))
+                                        .foregroundStyle(fontColor.opacity(timeOpacity))
                                         .padding(.leading, 2 * currentScale)
                                 }
                             }
@@ -286,7 +287,7 @@ struct WorldClockView: View {
                     // Location name below clock
                     Text(currentLocation.displayName)
                         .font(locationFont(for: currentScale))
-                        .foregroundStyle(fontColor.opacity(0.70))
+                        .foregroundStyle(fontColor.opacity(0.92))
                         .padding(.top, 2 * currentScale)
                 }
                 .padding(.vertical, 8 * currentScale)

@@ -114,6 +114,16 @@ class WorldClockManager: ObservableObject {
     }
 
     // MARK: - Window Management
+    private func undockedMainClockSize(using mainWindow: NSWindow) -> CGSize {
+        let preDockWidth = defaults.double(forKey: "preDockWindowWidth")
+        let preDockHeight = defaults.double(forKey: "preDockWindowHeight")
+
+        if preDockWidth > 0 && preDockHeight > 0 {
+            return CGSize(width: preDockWidth, height: preDockHeight)
+        }
+
+        return mainWindow.frame.size
+    }
 
     /// Open a world clock window for a location (window creation delegated to AppDelegate)
     func openWorldClock(for location: WorldClockLocation) {
@@ -127,15 +137,16 @@ class WorldClockManager: ObservableObject {
 
         var updatedLocation = location
 
-        // Update size to match main clock when opening
+        // Update size to match the main clock's undocked size when opening
         if let mainWindow = NSApp.windows.first(where: { $0.title == "CoolClockPresence" }) {
-            updatedLocation.windowWidth = mainWindow.frame.size.width
-            updatedLocation.windowHeight = mainWindow.frame.size.height
+            let targetSize = undockedMainClockSize(using: mainWindow)
+            updatedLocation.windowWidth = targetSize.width
+            updatedLocation.windowHeight = targetSize.height
 
             // Update saved location with new size
             if let index = savedLocations.firstIndex(where: { $0.id == location.id }) {
-                savedLocations[index].windowWidth = mainWindow.frame.size.width
-                savedLocations[index].windowHeight = mainWindow.frame.size.height
+                savedLocations[index].windowWidth = targetSize.width
+                savedLocations[index].windowHeight = targetSize.height
                 saveLocations()
             }
         }

@@ -23,6 +23,7 @@ struct DockedWorldClockView: View {
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var timelineRefresh: UUID = UUID()
     @State private var liveLocation: WorldClockLocation?
+    private let timeOpacity: Double = 0.55
 
     private var currentLocation: WorldClockLocation {
         liveLocation ?? location
@@ -149,14 +150,14 @@ struct DockedWorldClockView: View {
                         OutlinedText(
                             text: timeComponents(from: context.date).hours,
                             font: clockFont(for: scale),
-                            fillColor: fontColor.opacity(0.92),
+                            fillColor: fontColor.opacity(timeOpacity),
                             strokeColor: outlineColor,
                             lineWidth: max(0.5, 0.9 * scale)
                         )
                         BlinkingColon(
                             text: timeComponents(from: context.date).separator,
                             font: clockFont(for: scale),
-                            fillColor: fontColor,
+                            fillColor: fontColor.opacity(timeOpacity),
                             strokeColor: outlineColor,
                             lineWidth: max(0.5, 0.9 * scale),
                             shouldBlink: !shouldShowSeconds,
@@ -165,7 +166,7 @@ struct DockedWorldClockView: View {
                         OutlinedText(
                             text: timeComponents(from: context.date).minutes,
                             font: clockFont(for: scale),
-                            fillColor: fontColor.opacity(0.92),
+                            fillColor: fontColor.opacity(timeOpacity),
                             strokeColor: outlineColor,
                             lineWidth: max(0.5, 0.9 * scale)
                         )
@@ -173,14 +174,14 @@ struct DockedWorldClockView: View {
                             OutlinedText(
                                 text: ":",
                                 font: clockFont(for: scale),
-                                fillColor: fontColor.opacity(0.92),
+                                fillColor: fontColor.opacity(timeOpacity),
                                 strokeColor: outlineColor,
                                 lineWidth: max(0.5, 0.9 * scale)
                             )
                             OutlinedText(
                                 text: secondsPart,
                                 font: clockFont(for: scale),
-                                fillColor: fontColor.opacity(0.92),
+                                fillColor: fontColor.opacity(timeOpacity),
                                 strokeColor: outlineColor,
                                 lineWidth: max(0.5, 0.9 * scale)
                             )
@@ -189,7 +190,7 @@ struct DockedWorldClockView: View {
                             OutlinedText(
                                 text: ampm,
                                 font: .system(size: 16 * scale, weight: .medium, design: .rounded),
-                                fillColor: fontColor.opacity(0.92),
+                                fillColor: fontColor.opacity(timeOpacity),
                                 strokeColor: outlineColor,
                                 lineWidth: max(0.5, 0.9 * scale)
                             )
@@ -203,11 +204,11 @@ struct DockedWorldClockView: View {
                         Text(timeComponents(from: context.date).hours)
                             .font(clockFont(for: scale))
                             .monospacedDigit()
-                            .foregroundStyle(fontColor.opacity(0.92))
+                            .foregroundStyle(fontColor.opacity(timeOpacity))
                         BlinkingColon(
                             text: timeComponents(from: context.date).separator,
                             font: clockFont(for: scale),
-                            fillColor: fontColor,
+                            fillColor: fontColor.opacity(timeOpacity),
                             strokeColor: .clear,
                             lineWidth: 0,
                             shouldBlink: !shouldShowSeconds,
@@ -216,21 +217,21 @@ struct DockedWorldClockView: View {
                         Text(timeComponents(from: context.date).minutes)
                             .font(clockFont(for: scale))
                             .monospacedDigit()
-                            .foregroundStyle(fontColor.opacity(0.92))
+                            .foregroundStyle(fontColor.opacity(timeOpacity))
                         if let secondsPart = timeComponents(from: context.date).seconds {
                             Text(":")
                                 .font(clockFont(for: scale))
                                 .monospacedDigit()
-                                .foregroundStyle(fontColor.opacity(0.92))
+                                .foregroundStyle(fontColor.opacity(timeOpacity))
                             Text(secondsPart)
                                 .font(clockFont(for: scale))
                                 .monospacedDigit()
-                                .foregroundStyle(fontColor.opacity(0.92))
+                                .foregroundStyle(fontColor.opacity(timeOpacity))
                         }
                         if let ampm = timeComponents(from: context.date).ampm {
                             Text(ampm)
                                 .font(.system(size: 16 * scale, weight: .medium, design: .rounded))
-                                .foregroundStyle(fontColor.opacity(0.92))
+                                .foregroundStyle(fontColor.opacity(timeOpacity))
                                 .padding(.leading, 2 * scale)
                         }
                     }
@@ -240,10 +241,10 @@ struct DockedWorldClockView: View {
             }
             .id(timelineRefresh)
 
-            // Location name (smaller, dimmer)
+            // Location name (same brightness as clock)
             Text(currentLocation.displayName)
                 .font(locationFont(for: scale))
-                .foregroundStyle(fontColor.opacity(0.60))
+                .foregroundStyle(fontColor.opacity(0.92))
         }
         .contextMenu {
             Button("Undock") {
