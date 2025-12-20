@@ -299,9 +299,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
             // Show/Hide Clock Window
             let showClockItem = NSMenuItem(title: "Show Clock Window", action: #selector(self.toggleClockWindow), keyEquivalent: "")
-            if let window = self.window {
-                showClockItem.state = window.isVisible ? .on : .off
-            }
+            showClockItem.state = self.isAnyClockOrPhotoWindowVisible() ? .on : .off
             menu.addItem(showClockItem)
             menu.addItem(NSMenuItem.separator())
 
@@ -501,6 +499,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private func updateMainAndWorldClocks<T>(_ keyPath: WritableKeyPath<ClockSettings, T>, value: T) {
         settingsManager.updateMainClockProperty(keyPath, value: value)
         worldClockManager.updateAllClockSettings(keyPath, value: value)
+    }
+
+    /// True when any clock or photo window is visible.
+    func isAnyClockOrPhotoWindowVisible() -> Bool {
+        let mainClockVisible = window?.isVisible == true
+        let worldClocksVisible = worldClockManager.hasVisibleWindows
+        let photosVisible = photoWindowManager.hasVisiblePhotos
+        return mainClockVisible || worldClocksVisible || photosVisible
+    }
+
+    /// Shows or hides the main clock plus any floating world clocks and photo widgets.
+    private func setAllClockAndPhotoWindowsVisible(_ visible: Bool) {
+        if visible {
+            if window == nil {
+                showMainClock()
+            } else {
+                window?.makeKeyAndOrderFront(nil)
+            }
+            worldClockManager.showAllOpenWorldClocks()
+            photoWindowManager.showAllOpenPhotos()
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            window?.orderOut(nil)
+            worldClockManager.hideAllOpenWorldClocks()
+            photoWindowManager.hideAllOpenPhotos()
+        }
     }
 
     private func createFontColorMenuItem(title: String, colorName: String) -> NSMenuItem {
@@ -893,13 +917,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     @objc func toggleClockWindow() {
-        guard let window = window else { return }
-        if window.isVisible {
-            window.orderOut(nil)
-        } else {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        let shouldShow = !isAnyClockOrPhotoWindowVisible()
+        setAllClockAndPhotoWindowsVisible(shouldShow)
         updateMenuBarMenu()
     }
 

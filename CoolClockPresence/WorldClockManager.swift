@@ -113,6 +113,11 @@ class WorldClockManager: ObservableObject {
         openWindows[id] != nil
     }
 
+    /// True when at least one world clock panel is visible.
+    var hasVisibleWindows: Bool {
+        openWindows.values.contains { $0.isVisible }
+    }
+
     // MARK: - Window Management
     private func undockedMainClockSize(using mainWindow: NSWindow) -> CGSize {
         let preDockWidth = defaults.double(forKey: "preDockWindowWidth")
@@ -192,6 +197,16 @@ class WorldClockManager: ObservableObject {
             window.close()
         }
         openWindows.removeAll()
+    }
+
+    /// Hide every open world clock without closing the windows so they can be restored.
+    func hideAllOpenWorldClocks() {
+        openWindows.values.forEach { $0.orderOut(nil) }
+    }
+
+    /// Bring back every open world clock window.
+    func showAllOpenWorldClocks() {
+        openWindows.values.forEach { $0.orderFrontRegardless() }
     }
 
     // MARK: - Docking Management

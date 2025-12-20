@@ -186,6 +186,11 @@ final class PhotoWindowManager: ObservableObject {
         openWindows[id] != nil
     }
 
+    /// True when at least one photo window is visible.
+    var hasVisiblePhotos: Bool {
+        openWindows.values.contains { $0.isVisible }
+    }
+
     func updatePhotoWindow(id: UUID, x: Double, y: Double, width: Double, height: Double) {
         if let index = savedPhotos.firstIndex(where: { $0.id == id }) {
             savedPhotos[index].windowX = x
@@ -201,6 +206,16 @@ final class PhotoWindowManager: ObservableObject {
             window.close()
         }
         openWindows.removeAll()
+    }
+
+    /// Hide every open photo window without closing so they can be restored later.
+    func hideAllOpenPhotos() {
+        openWindows.values.forEach { $0.orderOut(nil) }
+    }
+
+    /// Bring back every open photo window.
+    func showAllOpenPhotos() {
+        openWindows.values.forEach { $0.orderFrontRegardless() }
     }
 
     // MARK: - Persistence

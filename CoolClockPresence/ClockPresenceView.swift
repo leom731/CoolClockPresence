@@ -400,7 +400,7 @@ struct ClockPresenceView: View {
                 Button {
                     performMenuAction(#selector(AppDelegate.toggleClockWindow))
                 } label: {
-                    let isVisible = appDelegate?.window?.isVisible ?? false
+                    let isVisible = appDelegate?.isAnyClockOrPhotoWindowVisible() ?? false
                     if isVisible {
                         Label("Show Clock Window", systemImage: "checkmark")
                     } else {
