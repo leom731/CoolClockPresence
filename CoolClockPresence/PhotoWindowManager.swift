@@ -25,9 +25,11 @@ final class PhotoWindowManager: ObservableObject {
 
     @Published private(set) var savedPhotos: [PhotoItem] = []
     private var openWindows: [UUID: NSPanel] = [:]
+    private var openPhotoIDs: Set<UUID> = []
     private let defaults = UserDefaults.standard
     private let fileManager = FileManager.default
     private let storageDirectory: URL
+    private let openPhotoIDsKey = "openPhotoWindowIDs"
 
     private init() {
         let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ??
@@ -43,6 +45,7 @@ final class PhotoWindowManager: ObservableObject {
         }
 
         loadPhotos()
+        loadOpenPhotoIDs()
     }
 
     var photosDirectory: URL { storageDirectory }
@@ -157,6 +160,7 @@ final class PhotoWindowManager: ObservableObject {
             object: nil,
             userInfo: ["photo": photo]
         )
+        markPhotoOpen(photo.id)
     }
 
     func registerPhotoWindow(_ window: NSPanel, for photoID: UUID) {
@@ -172,6 +176,7 @@ final class PhotoWindowManager: ObservableObject {
             window.close()
             openWindows.removeValue(forKey: photoID)
         }
+        markPhotoClosed(photoID)
     }
 
     func togglePhotoWindow(for photo: PhotoItem) {
@@ -202,10 +207,19 @@ final class PhotoWindowManager: ObservableObject {
     }
 
     func closeAllPhotos() {
-        for (_, window) in openWindows {
+        var didChange = false
+
+        for (id, window) in openWindows {
             window.close()
+            if openPhotoIDs.remove(id) != nil {
+                didChange = true
+            }
         }
         openWindows.removeAll()
+
+        if didChange {
+            saveOpenPhotoIDs()
+        }
     }
 
     /// Hide every open photo window without closing so they can be restored later.
@@ -219,6 +233,58 @@ final class PhotoWindowManager: ObservableObject {
     }
 
     // MARK: - Persistence
+
+    /// Restore any photo widgets that were open the last time the app ran.
+    func restoreOpenPhotos() {
+        let idsToRestore = Array(openPhotoIDs)
+        var didPrune = false
+
+        for id in idsToRestore {
+            guard let photo = savedPhotos.first(where: { $0.id == id }) else {
+                openPhotoIDs.remove(id)
+                didPrune = true
+                continue
+            }
+
+            openPhotoWindow(for: photo)
+        }
+
+        if didPrune {
+            saveOpenPhotoIDs()
+        }
+    }
+
+    private func loadOpenPhotoIDs() {
+        guard let data = defaults.data(forKey: openPhotoIDsKey) else { return }
+        do {
+            let ids = try JSONDecoder().decode([UUID].self, from: data)
+            openPhotoIDs = Set(ids)
+        } catch {
+            print("⚠️ Failed to load open photo IDs: \(error)")
+            openPhotoIDs = []
+        }
+    }
+
+    private func saveOpenPhotoIDs() {
+        do {
+            let data = try JSONEncoder().encode(Array(openPhotoIDs))
+            defaults.set(data, forKey: openPhotoIDsKey)
+        } catch {
+            print("⚠️ Failed to save open photo IDs: \(error)")
+        }
+    }
+
+    private func markPhotoOpen(_ id: UUID) {
+        if openPhotoIDs.insert(id).inserted {
+            saveOpenPhotoIDs()
+        }
+    }
+
+    private func markPhotoClosed(_ id: UUID) {
+        if openPhotoIDs.remove(id) != nil {
+            saveOpenPhotoIDs()
+        }
+    }
 
     private func loadPhotos() {
         guard let data = defaults.data(forKey: "photoWindows") else { return }

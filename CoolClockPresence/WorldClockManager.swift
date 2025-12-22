@@ -18,11 +18,14 @@ class WorldClockManager: ObservableObject {
 
     @Published private(set) var savedLocations: [WorldClockLocation] = []
     private var openWindows: [UUID: NSPanel] = [:]
+    private var openWindowIDs: Set<UUID> = []
     private let settingsManager = ClockSettingsManager.shared
     private let defaults = UserDefaults.standard
+    private let openWindowIDsKey = "openWorldClockWindows"
 
     private init() {
         loadSavedLocations()
+        loadOpenWindowIDs()
     }
 
     // MARK: - Location Management
@@ -162,6 +165,7 @@ class WorldClockManager: ObservableObject {
             object: nil,
             userInfo: ["location": updatedLocation]
         )
+        markWindowOpen(location.id)
     }
 
     /// Register a world clock window (called by AppDelegate after creating it)
@@ -180,6 +184,7 @@ class WorldClockManager: ObservableObject {
             window.close()
             openWindows.removeValue(forKey: locationID)
         }
+        markWindowClosed(locationID)
     }
 
     /// Toggle a world clock window (open if closed, close if open)
@@ -193,10 +198,19 @@ class WorldClockManager: ObservableObject {
 
     /// Close all world clock windows
     func closeAllWorldClocks() {
-        for (_, window) in openWindows {
+        var didChange = false
+
+        for (id, window) in openWindows {
             window.close()
+            if openWindowIDs.remove(id) != nil {
+                didChange = true
+            }
         }
         openWindows.removeAll()
+
+        if didChange {
+            saveOpenWindowIDs()
+        }
     }
 
     /// Hide every open world clock without closing the windows so they can be restored.
@@ -248,6 +262,7 @@ class WorldClockManager: ObservableObject {
         // Set docking state
         savedLocations[index].isDocked = true
         savedLocations[index].dockedOrder = nextDockedOrder()
+        markWindowClosed(locationID)
 
         saveLocations()
 
@@ -404,6 +419,64 @@ class WorldClockManager: ObservableObject {
     }
 
     // MARK: - Persistence
+
+    /// Restore any floating world clocks that were open the last time the app ran.
+    func restoreOpenWorldClocks() {
+        let idsToRestore = Array(openWindowIDs)
+        var didPrune = false
+
+        for id in idsToRestore {
+            guard let location = savedLocations.first(where: { $0.id == id }) else {
+                openWindowIDs.remove(id)
+                didPrune = true
+                continue
+            }
+
+            if location.isDocked {
+                openWindowIDs.remove(id)
+                didPrune = true
+                continue
+            }
+
+            openWorldClock(for: location)
+        }
+
+        if didPrune {
+            saveOpenWindowIDs()
+        }
+    }
+
+    private func loadOpenWindowIDs() {
+        guard let data = defaults.data(forKey: openWindowIDsKey) else { return }
+        do {
+            let ids = try JSONDecoder().decode([UUID].self, from: data)
+            openWindowIDs = Set(ids)
+        } catch {
+            print("⚠️ Failed to load open world clock IDs: \(error)")
+            openWindowIDs = []
+        }
+    }
+
+    private func saveOpenWindowIDs() {
+        do {
+            let data = try JSONEncoder().encode(Array(openWindowIDs))
+            defaults.set(data, forKey: openWindowIDsKey)
+        } catch {
+            print("⚠️ Failed to save open world clock IDs: \(error)")
+        }
+    }
+
+    private func markWindowOpen(_ id: UUID) {
+        if openWindowIDs.insert(id).inserted {
+            saveOpenWindowIDs()
+        }
+    }
+
+    private func markWindowClosed(_ id: UUID) {
+        if openWindowIDs.remove(id) != nil {
+            saveOpenWindowIDs()
+        }
+    }
 
     private func loadSavedLocations() {
         guard let data = defaults.data(forKey: "worldClockLocations") else { return }

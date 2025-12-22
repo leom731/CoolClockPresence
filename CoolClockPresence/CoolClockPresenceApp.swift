@@ -88,6 +88,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private let preDockHeightKey = "preDockWindowHeight"
     private var windowSizeBeforeDocking: CGSize?
     private var lastDockedCount: Int = 0
+    private var didRestoreAuxWindows = false
     private var appStoreProductID: String? {
         // Prefer an Info.plist override so you can set this without code changes
         let rawID = (Bundle.main.object(forInfoDictionaryKey: "AppStoreProductID") as? String) ?? "0000000000"
@@ -525,6 +526,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             worldClockManager.hideAllOpenWorldClocks()
             photoWindowManager.hideAllOpenPhotos()
         }
+    }
+
+    /// Restore any world clock or photo windows that were open last session.
+    private func restoreAuxWindowsIfNeeded() {
+        guard !didRestoreAuxWindows else { return }
+        didRestoreAuxWindows = true
+        worldClockManager.restoreOpenWorldClocks()
+        photoWindowManager.restoreOpenPhotos()
+        updateMenuBarMenu()
     }
 
     private func createFontColorMenuItem(title: String, colorName: String) -> NSMenuItem {
@@ -1238,6 +1248,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             name: NSNotification.Name("ShowHelpWindow"),
             object: nil
         )
+
+        restoreAuxWindowsIfNeeded()
+        updateMainWindowConstraints()
     }
 
     @objc func showOnboardingAgain() {
