@@ -116,6 +116,19 @@ struct PhotoWindowView: View {
     @ViewBuilder
     private var contextMenu: some View {
         Button {
+            performMenuAction(#selector(AppDelegate.toggleClockWindow))
+        } label: {
+            let isVisible = appDelegate?.isAnyClockOrPhotoWindowVisible() ?? false
+            if isVisible {
+                Label("Show Clock Window", systemImage: "checkmark")
+            } else {
+                Text("Show Clock Window")
+            }
+        }
+
+        Divider()
+
+        Button {
             PhotoWindowManager.shared.closePhotoWindow(for: photo.id)
         } label: {
             Text("Close This Photo")
