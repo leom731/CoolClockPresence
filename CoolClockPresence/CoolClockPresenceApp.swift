@@ -302,6 +302,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             let showClockItem = NSMenuItem(title: "Show Clock Window", action: #selector(self.toggleClockWindow), keyEquivalent: "")
             showClockItem.state = self.isAnyClockOrPhotoWindowVisible() ? .on : .off
             menu.addItem(showClockItem)
+
+            // Show/Hide Clocks Only
+            let showClocksOnlyItem = NSMenuItem(title: "Show Clocks Only", action: #selector(self.toggleClocksOnly), keyEquivalent: "")
+            showClocksOnlyItem.state = self.isAnyClocksVisible() ? .on : .off
+            menu.addItem(showClocksOnlyItem)
+
+            // Show/Hide Photos Only
+            let showPhotosOnlyItem = NSMenuItem(title: "Show Photos Only", action: #selector(self.togglePhotosOnly), keyEquivalent: "")
+            showPhotosOnlyItem.state = self.isAnyPhotosVisible() ? .on : .off
+            menu.addItem(showPhotosOnlyItem)
+
             menu.addItem(NSMenuItem.separator())
 
             // Font Color submenu
@@ -510,6 +521,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         return mainClockVisible || worldClocksVisible || photosVisible
     }
 
+    /// True when any clock window (main or world) is visible.
+    func isAnyClocksVisible() -> Bool {
+        let mainClockVisible = window?.isVisible == true
+        let worldClocksVisible = worldClockManager.hasVisibleWindows
+        return mainClockVisible || worldClocksVisible
+    }
+
+    /// True when any photo window is visible.
+    func isAnyPhotosVisible() -> Bool {
+        return photoWindowManager.hasVisiblePhotos
+    }
+
     /// Shows or hides the main clock plus any floating world clocks and photo widgets.
     private func setAllClockAndPhotoWindowsVisible(_ visible: Bool) {
         if visible {
@@ -524,6 +547,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         } else {
             window?.orderOut(nil)
             worldClockManager.hideAllOpenWorldClocks()
+            photoWindowManager.hideAllOpenPhotos()
+        }
+    }
+
+    /// Shows or hides the main clock plus any floating world clocks (keeps photos unchanged).
+    private func setClocksVisible(_ visible: Bool) {
+        if visible {
+            if window == nil {
+                showMainClock()
+            } else {
+                window?.makeKeyAndOrderFront(nil)
+            }
+            worldClockManager.showAllOpenWorldClocks()
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            window?.orderOut(nil)
+            worldClockManager.hideAllOpenWorldClocks()
+        }
+    }
+
+    /// Shows or hides photo widgets (keeps clocks unchanged).
+    private func setPhotosVisible(_ visible: Bool) {
+        if visible {
+            photoWindowManager.showAllOpenPhotos()
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
             photoWindowManager.hideAllOpenPhotos()
         }
     }
@@ -929,6 +978,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     @objc func toggleClockWindow() {
         let shouldShow = !isAnyClockOrPhotoWindowVisible()
         setAllClockAndPhotoWindowsVisible(shouldShow)
+        updateMenuBarMenu()
+    }
+
+    @objc func toggleClocksOnly() {
+        let shouldShow = !isAnyClocksVisible()
+        setClocksVisible(shouldShow)
+        updateMenuBarMenu()
+    }
+
+    @objc func togglePhotosOnly() {
+        let shouldShow = !isAnyPhotosVisible()
+        setPhotosVisible(shouldShow)
         updateMenuBarMenu()
     }
 

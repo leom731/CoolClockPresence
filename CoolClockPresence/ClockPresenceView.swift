@@ -408,6 +408,28 @@ struct ClockPresenceView: View {
                     }
                 }
 
+                Button {
+                    performMenuAction(#selector(AppDelegate.toggleClocksOnly))
+                } label: {
+                    let isVisible = appDelegate?.isAnyClocksVisible() ?? false
+                    if isVisible {
+                        Label("Show Clocks Only", systemImage: "checkmark")
+                    } else {
+                        Text("Show Clocks Only")
+                    }
+                }
+
+                Button {
+                    performMenuAction(#selector(AppDelegate.togglePhotosOnly))
+                } label: {
+                    let isVisible = appDelegate?.isAnyPhotosVisible() ?? false
+                    if isVisible {
+                        Label("Show Photos Only", systemImage: "checkmark")
+                    } else {
+                        Text("Show Photos Only")
+                    }
+                }
+
                 Divider()
 
                 Menu("Font Color") {
