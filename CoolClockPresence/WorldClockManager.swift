@@ -17,8 +17,10 @@ class WorldClockManager: ObservableObject {
     static let shared = WorldClockManager()
 
     @Published private(set) var savedLocations: [WorldClockLocation] = []
+    @Published private(set) var hasVisibleWindows: Bool = false
     private var openWindows: [UUID: NSPanel] = [:]
     private var openWindowIDs: Set<UUID> = []
+    private var areWorldClocksHidden: Bool = false
     private let settingsManager = ClockSettingsManager.shared
     private let defaults = UserDefaults.standard
     private let openWindowIDsKey = "openWorldClockWindows"
@@ -116,9 +118,8 @@ class WorldClockManager: ObservableObject {
         openWindows[id] != nil
     }
 
-    /// True when at least one world clock panel is visible.
-    var hasVisibleWindows: Bool {
-        openWindows.values.contains { $0.isVisible }
+    private func updateVisibility() {
+        hasVisibleWindows = !openWindows.isEmpty && !areWorldClocksHidden
     }
 
     // MARK: - Window Management
@@ -171,11 +172,13 @@ class WorldClockManager: ObservableObject {
     /// Register a world clock window (called by AppDelegate after creating it)
     func registerWorldClockWindow(_ window: NSPanel, for locationID: UUID) {
         openWindows[locationID] = window
+        updateVisibility()
     }
 
     /// Unregister a world clock window
     func unregisterWorldClockWindow(for locationID: UUID) {
         openWindows.removeValue(forKey: locationID)
+        updateVisibility()
     }
 
     /// Close a world clock window
@@ -216,11 +219,15 @@ class WorldClockManager: ObservableObject {
     /// Hide every open world clock without closing the windows so they can be restored.
     func hideAllOpenWorldClocks() {
         openWindows.values.forEach { $0.orderOut(nil) }
+        areWorldClocksHidden = true
+        updateVisibility()
     }
 
     /// Bring back every open world clock window.
     func showAllOpenWorldClocks() {
         openWindows.values.forEach { $0.orderFrontRegardless() }
+        areWorldClocksHidden = false
+        updateVisibility()
     }
 
     // MARK: - Docking Management

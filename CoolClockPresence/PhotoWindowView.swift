@@ -21,6 +21,9 @@ struct PhotoWindowView: View {
     @AppStorage("photoWindowOpacity") private var photoWindowOpacity: Double = 1.0
 
     @StateObject private var purchaseManager = PurchaseManager.shared
+    @StateObject private var photoManager = PhotoWindowManager.shared
+    @StateObject private var worldClockManager = WorldClockManager.shared
+    @StateObject private var settingsManager = ClockSettingsManager.shared
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
     @State private var mouseLocation: CGPoint = .zero
@@ -118,34 +121,27 @@ struct PhotoWindowView: View {
         Button {
             performMenuAction(#selector(AppDelegate.toggleClockWindow))
         } label: {
-            let isVisible = appDelegate?.isAnyClockOrPhotoWindowVisible() ?? false
-            if isVisible {
-                Label("Show Clock Window", systemImage: "checkmark")
-            } else {
-                Text("Show Clock Window")
-            }
+            let hasMainClock = settingsManager.isMainClockVisible
+            let hasWorldClocks = worldClockManager.hasVisibleWindows
+            let hasPhotos = photoManager.hasVisiblePhotos
+            let isVisible = hasMainClock || hasWorldClocks || hasPhotos
+            Text(isVisible ? "Hide Clock Window" : "Show Clock Window")
         }
 
         Button {
             performMenuAction(#selector(AppDelegate.toggleClocksOnly))
         } label: {
-            let isVisible = appDelegate?.isAnyClocksVisible() ?? false
-            if isVisible {
-                Label("Show Clocks Only", systemImage: "checkmark")
-            } else {
-                Text("Show Clocks Only")
-            }
+            let hasMainClock = settingsManager.isMainClockVisible
+            let hasWorldClocks = worldClockManager.hasVisibleWindows
+            let isVisible = hasMainClock || hasWorldClocks
+            Text(isVisible ? "Hide Clocks Only" : "Show Clocks Only")
         }
 
         Button {
             performMenuAction(#selector(AppDelegate.togglePhotosOnly))
         } label: {
-            let isVisible = appDelegate?.isAnyPhotosVisible() ?? false
-            if isVisible {
-                Label("Show Photos Only", systemImage: "checkmark")
-            } else {
-                Text("Show Photos Only")
-            }
+            let isVisible = photoManager.hasVisiblePhotos
+            Text(isVisible ? "Hide Photos Only" : "Show Photos Only")
         }
 
         Divider()

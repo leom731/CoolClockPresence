@@ -24,8 +24,10 @@ final class PhotoWindowManager: ObservableObject {
     static let shared = PhotoWindowManager()
 
     @Published private(set) var savedPhotos: [PhotoItem] = []
+    @Published private(set) var hasVisiblePhotos: Bool = false
     private var openWindows: [UUID: NSPanel] = [:]
     private var openPhotoIDs: Set<UUID> = []
+    private var arePhotosHidden: Bool = false
     private let defaults = UserDefaults.standard
     private let fileManager = FileManager.default
     private let storageDirectory: URL
@@ -165,10 +167,12 @@ final class PhotoWindowManager: ObservableObject {
 
     func registerPhotoWindow(_ window: NSPanel, for photoID: UUID) {
         openWindows[photoID] = window
+        updateVisibility()
     }
 
     func unregisterPhotoWindow(for photoID: UUID) {
         openWindows.removeValue(forKey: photoID)
+        updateVisibility()
     }
 
     func closePhotoWindow(for photoID: UUID) {
@@ -191,9 +195,8 @@ final class PhotoWindowManager: ObservableObject {
         openWindows[id] != nil
     }
 
-    /// True when at least one photo window is visible.
-    var hasVisiblePhotos: Bool {
-        openWindows.values.contains { $0.isVisible }
+    private func updateVisibility() {
+        hasVisiblePhotos = !openWindows.isEmpty && !arePhotosHidden
     }
 
     func updatePhotoWindow(id: UUID, x: Double, y: Double, width: Double, height: Double) {
@@ -225,11 +228,15 @@ final class PhotoWindowManager: ObservableObject {
     /// Hide every open photo window without closing so they can be restored later.
     func hideAllOpenPhotos() {
         openWindows.values.forEach { $0.orderOut(nil) }
+        arePhotosHidden = true
+        updateVisibility()
     }
 
     /// Bring back every open photo window.
     func showAllOpenPhotos() {
         openWindows.values.forEach { $0.orderFrontRegardless() }
+        arePhotosHidden = false
+        updateVisibility()
     }
 
     // MARK: - Persistence

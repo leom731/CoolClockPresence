@@ -17,6 +17,7 @@ final class ClockSettingsManager: ObservableObject {
     static let shared = ClockSettingsManager()
 
     @Published private(set) var mainClockSettings: ClockSettings
+    @Published var isMainClockVisible: Bool = true
     private let defaults = UserDefaults.standard
 
     private init() {

@@ -299,18 +299,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             let mainSettings = self.settingsManager.mainClockSettings
 
             // Show/Hide Clock Window
-            let showClockItem = NSMenuItem(title: "Show Clock Window", action: #selector(self.toggleClockWindow), keyEquivalent: "")
-            showClockItem.state = self.isAnyClockOrPhotoWindowVisible() ? .on : .off
+            let clockWindowTitle = self.isAnyClockOrPhotoWindowVisible() ? "Hide Clock Window" : "Show Clock Window"
+            let showClockItem = NSMenuItem(title: clockWindowTitle, action: #selector(self.toggleClockWindow), keyEquivalent: "")
             menu.addItem(showClockItem)
 
             // Show/Hide Clocks Only
-            let showClocksOnlyItem = NSMenuItem(title: "Show Clocks Only", action: #selector(self.toggleClocksOnly), keyEquivalent: "")
-            showClocksOnlyItem.state = self.isAnyClocksVisible() ? .on : .off
+            let clocksOnlyTitle = self.isAnyClocksVisible() ? "Hide Clocks Only" : "Show Clocks Only"
+            let showClocksOnlyItem = NSMenuItem(title: clocksOnlyTitle, action: #selector(self.toggleClocksOnly), keyEquivalent: "")
             menu.addItem(showClocksOnlyItem)
 
             // Show/Hide Photos Only
-            let showPhotosOnlyItem = NSMenuItem(title: "Show Photos Only", action: #selector(self.togglePhotosOnly), keyEquivalent: "")
-            showPhotosOnlyItem.state = self.isAnyPhotosVisible() ? .on : .off
+            let photosOnlyTitle = self.isAnyPhotosVisible() ? "Hide Photos Only" : "Show Photos Only"
+            let showPhotosOnlyItem = NSMenuItem(title: photosOnlyTitle, action: #selector(self.togglePhotosOnly), keyEquivalent: "")
             menu.addItem(showPhotosOnlyItem)
 
             menu.addItem(NSMenuItem.separator())
@@ -541,11 +541,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             } else {
                 window?.makeKeyAndOrderFront(nil)
             }
+            settingsManager.isMainClockVisible = true
             worldClockManager.showAllOpenWorldClocks()
             photoWindowManager.showAllOpenPhotos()
             NSApp.activate(ignoringOtherApps: true)
         } else {
             window?.orderOut(nil)
+            settingsManager.isMainClockVisible = false
             worldClockManager.hideAllOpenWorldClocks()
             photoWindowManager.hideAllOpenPhotos()
         }
@@ -559,10 +561,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             } else {
                 window?.makeKeyAndOrderFront(nil)
             }
+            settingsManager.isMainClockVisible = true
             worldClockManager.showAllOpenWorldClocks()
             NSApp.activate(ignoringOtherApps: true)
         } else {
             window?.orderOut(nil)
+            settingsManager.isMainClockVisible = false
             worldClockManager.hideAllOpenWorldClocks()
         }
     }
