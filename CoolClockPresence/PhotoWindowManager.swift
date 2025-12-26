@@ -100,6 +100,13 @@ final class PhotoWindowManager: ObservableObject {
         savedPhotos.removeAll { $0.id == id }
         savePhotos()
 
+        // Notify that photo was deleted so clocks can clear it from backgrounds
+        NotificationCenter.default.post(
+            name: NSNotification.Name("PhotoDeleted"),
+            object: nil,
+            userInfo: ["photoID": id]
+        )
+
         return PhotoDeletionSnapshot(item: item, index: index, imageData: data)
     }
 

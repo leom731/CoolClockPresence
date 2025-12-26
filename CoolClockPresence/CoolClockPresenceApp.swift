@@ -366,6 +366,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             let glassStyleItem = NSMenuItem(title: "Glass Style", action: nil, keyEquivalent: "")
             glassStyleItem.submenu = self.makeGlassStyleMenu()
             menu.addItem(glassStyleItem)
+
+            // Background Photo submenu
+            let backgroundPhotoItem = NSMenuItem(title: "Background Photo", action: nil, keyEquivalent: "")
+            backgroundPhotoItem.submenu = self.makeBackgroundPhotoMenu()
+            menu.addItem(backgroundPhotoItem)
             menu.addItem(NSMenuItem.separator())
 
             // Clock position submenu
@@ -803,6 +808,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: workItem)
     }
 
+    // MARK: - Background Photo Actions
+
+    @objc private func clearBackgroundPhoto() {
+        settingsManager.updateMainClockProperty(\.backgroundPhotoID, value: nil as UUID?)
+    }
+
+    @objc private func setBackgroundPhoto(_ sender: NSMenuItem) {
+        guard let photoID = sender.representedObject as? UUID else { return }
+        settingsManager.updateMainClockProperty(\.backgroundPhotoID, value: photoID)
+    }
+
+    @objc private func setBackgroundPhotoOpacity(_ sender: NSMenuItem) {
+        guard let opacity = sender.representedObject as? Double else { return }
+        settingsManager.updateMainClockProperty(\.backgroundPhotoOpacity, value: opacity)
+    }
+
+    @objc private func setBackgroundPhotoAspectMode(_ sender: NSMenuItem) {
+        guard let mode = sender.representedObject as? String else { return }
+        settingsManager.updateMainClockProperty(\.backgroundPhotoAspectMode, value: mode)
+    }
+
+    // MARK: - Menu Builders
+
     /// Shared Glass Style submenu used by both the status item menu and the clock context menu.
     func makeGlassStyleMenu() -> NSMenu {
         let glassStyleMenu = NSMenu()
@@ -814,6 +842,72 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         glassStyleMenu.addItem(NSMenuItem.separator())
         glassStyleMenu.addItem(adjustableBlackOpacityMenuItem())
         return glassStyleMenu
+    }
+
+    /// Shared Background Photo submenu used by both the status item menu and potentially the clock context menu.
+    func makeBackgroundPhotoMenu() -> NSMenu {
+        let backgroundPhotoMenu = NSMenu()
+        backgroundPhotoMenu.autoenablesItems = false
+
+        // "None" option to clear background
+        let noneItem = NSMenuItem(title: "None", action: #selector(clearBackgroundPhoto), keyEquivalent: "")
+        noneItem.target = self
+        noneItem.state = settingsManager.mainClockSettings.backgroundPhotoID == nil ? .on : .off
+        backgroundPhotoMenu.addItem(noneItem)
+
+        // Add available photos
+        if !photoWindowManager.savedPhotos.isEmpty {
+            backgroundPhotoMenu.addItem(NSMenuItem.separator())
+
+            for photo in photoWindowManager.savedPhotos {
+                let item = NSMenuItem(title: photo.displayName, action: #selector(setBackgroundPhoto(_:)), keyEquivalent: "")
+                item.representedObject = photo.id
+                item.target = self
+                item.state = settingsManager.mainClockSettings.backgroundPhotoID == photo.id ? .on : .off
+                backgroundPhotoMenu.addItem(item)
+            }
+
+            backgroundPhotoMenu.addItem(NSMenuItem.separator())
+
+            // Opacity submenu
+            let opacityMenu = NSMenu()
+            for opacity in [1.0, 0.8, 0.6, 0.4, 0.2] {
+                let item = NSMenuItem(title: "\(Int(opacity * 100))%", action: #selector(setBackgroundPhotoOpacity(_:)), keyEquivalent: "")
+                item.representedObject = opacity
+                item.target = self
+                let currentOpacity = settingsManager.mainClockSettings.backgroundPhotoOpacity
+                item.state = abs(currentOpacity - opacity) < 0.001 ? .on : .off
+                opacityMenu.addItem(item)
+            }
+            let opacityItem = NSMenuItem(title: "Opacity", action: nil, keyEquivalent: "")
+            opacityItem.submenu = opacityMenu
+            backgroundPhotoMenu.addItem(opacityItem)
+
+            // Display Mode submenu
+            let displayModeMenu = NSMenu()
+            let fillItem = NSMenuItem(title: "Aspect Fill", action: #selector(setBackgroundPhotoAspectMode(_:)), keyEquivalent: "")
+            fillItem.representedObject = "fill"
+            fillItem.target = self
+            fillItem.state = settingsManager.mainClockSettings.backgroundPhotoAspectMode == "fill" ? .on : .off
+            displayModeMenu.addItem(fillItem)
+
+            let fitItem = NSMenuItem(title: "Aspect Fit", action: #selector(setBackgroundPhotoAspectMode(_:)), keyEquivalent: "")
+            fitItem.representedObject = "fit"
+            fitItem.target = self
+            fitItem.state = settingsManager.mainClockSettings.backgroundPhotoAspectMode == "fit" ? .on : .off
+            displayModeMenu.addItem(fitItem)
+
+            let displayModeItem = NSMenuItem(title: "Display Mode", action: nil, keyEquivalent: "")
+            displayModeItem.submenu = displayModeMenu
+            backgroundPhotoMenu.addItem(displayModeItem)
+        } else {
+            backgroundPhotoMenu.addItem(NSMenuItem(title: "No photos available", action: nil, keyEquivalent: ""))
+            let addPhotoItem = NSMenuItem(title: "Add Photo...", action: #selector(showPhotoPicker), keyEquivalent: "")
+            addPhotoItem.target = self
+            backgroundPhotoMenu.addItem(addPhotoItem)
+        }
+
+        return backgroundPhotoMenu
     }
 
     /// Presents the Glass Style submenu at the current mouse location (used for the clock's context menu).

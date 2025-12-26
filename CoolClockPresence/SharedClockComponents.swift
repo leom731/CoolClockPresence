@@ -277,6 +277,38 @@ struct GlassBackdrop: View {
     }
 }
 
+// MARK: - Background Photo View
+
+/// Displays a photo as a background for clock windows
+struct BackgroundPhotoView: View {
+    let photoID: UUID?
+    let opacity: Double
+    let aspectMode: String
+
+    @StateObject private var photoManager = PhotoWindowManager.shared
+
+    var body: some View {
+        if let photoID = photoID,
+           let photo = photoManager.savedPhotos.first(where: { $0.id == photoID }),
+           let image = photoManager.image(for: photo) {
+
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: contentMode)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .opacity(opacity)
+        }
+    }
+
+    private var contentMode: ContentMode {
+        switch aspectMode {
+        case "fit": return .fit
+        default: return .fill
+        }
+    }
+}
+
 // MARK: - Resize Edge Indicators
 
 /// Visual indicators that appear near window edges to show where you can resize

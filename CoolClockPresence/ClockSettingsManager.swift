@@ -30,6 +30,20 @@ final class ClockSettingsManager: ObservableObject {
             mainClockSettings = Self.migrateGlobalSettings()
             saveMainClockSettings()
         }
+
+        // Observe photo deletions to clear from background if needed
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("PhotoDeleted"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let photoID = notification.userInfo?["photoID"] as? UUID else { return }
+
+            // Clear from main clock if it's using this photo
+            if self?.mainClockSettings.backgroundPhotoID == photoID {
+                self?.updateMainClockProperty(\.backgroundPhotoID, value: nil as UUID?)
+            }
+        }
     }
 
     /// Update main clock settings and persist to UserDefaults

@@ -22,6 +22,9 @@ struct ClockSettings: Codable, Equatable {
     var alwaysOnTop: Bool
     var disappearOnHover: Bool
     var clockOpacity: Double
+    var backgroundPhotoID: UUID?
+    var backgroundPhotoAspectMode: String
+    var backgroundPhotoOpacity: Double
 
     /// Default settings matching app defaults
     static let `default` = ClockSettings(
@@ -34,7 +37,10 @@ struct ClockSettings: Codable, Equatable {
         showBattery: true,
         alwaysOnTop: true,
         disappearOnHover: true,
-        clockOpacity: 1.0
+        clockOpacity: 1.0,
+        backgroundPhotoID: nil,
+        backgroundPhotoAspectMode: "fill",
+        backgroundPhotoOpacity: 0.6
     )
 
     /// UserDefaults key for main clock settings
@@ -50,7 +56,10 @@ struct ClockSettings: Codable, Equatable {
         showBattery: Bool = true,
         alwaysOnTop: Bool = true,
         disappearOnHover: Bool = true,
-        clockOpacity: Double = 1.0
+        clockOpacity: Double = 1.0,
+        backgroundPhotoID: UUID? = nil,
+        backgroundPhotoAspectMode: String = "fill",
+        backgroundPhotoOpacity: Double = 0.6
     ) {
         self.fontColorName = fontColorName
         self.fontDesign = fontDesign
@@ -62,5 +71,8 @@ struct ClockSettings: Codable, Equatable {
         self.alwaysOnTop = alwaysOnTop
         self.disappearOnHover = disappearOnHover
         self.clockOpacity = clockOpacity
+        self.backgroundPhotoID = backgroundPhotoID
+        self.backgroundPhotoAspectMode = backgroundPhotoAspectMode
+        self.backgroundPhotoOpacity = backgroundPhotoOpacity
     }
 }

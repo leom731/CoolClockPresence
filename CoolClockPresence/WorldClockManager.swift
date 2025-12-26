@@ -28,6 +28,23 @@ class WorldClockManager: ObservableObject {
     private init() {
         loadSavedLocations()
         loadOpenWindowIDs()
+
+        // Observe photo deletions to clear from world clock backgrounds if needed
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("PhotoDeleted"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let photoID = notification.userInfo?["photoID"] as? UUID,
+                  let self = self else { return }
+
+            // Clear from any world clocks using this photo
+            for location in self.savedLocations where location.settings.backgroundPhotoID == photoID {
+                var updatedSettings = location.settings
+                updatedSettings.backgroundPhotoID = nil
+                self.updateClockSettings(for: location.id, settings: updatedSettings)
+            }
+        }
     }
 
     // MARK: - Location Management

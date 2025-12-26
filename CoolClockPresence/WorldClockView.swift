@@ -20,6 +20,7 @@ struct WorldClockView: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("worldClockDimmed") private var isWorldClockDimmed: Bool = true
     @StateObject private var worldClockManager = WorldClockManager.shared
+    @StateObject private var photoManager = PhotoWindowManager.shared
     @State private var isHovering: Bool = false
     @State private var isCommandKeyPressed: Bool = false
     @StateObject private var purchaseManager = PurchaseManager.shared
@@ -183,6 +184,15 @@ struct WorldClockView: View {
             let currentScale = scale(for: geometry.size)
             let strokeColor = outlineColorForBackground()
             ZStack {
+                // Background photo layer (behind glass)
+                if let photoID = currentLocation.settings.backgroundPhotoID {
+                    BackgroundPhotoView(
+                        photoID: photoID,
+                        opacity: currentLocation.settings.backgroundPhotoOpacity,
+                        aspectMode: currentLocation.settings.backgroundPhotoAspectMode
+                    )
+                }
+
                 GlassBackdrop(style: glassStyle, adjustableOpacity: adjustableBlackOpacity)
 
                 VStack(spacing: 4 * currentScale) {
@@ -383,6 +393,86 @@ struct WorldClockView: View {
 
                 Button("Glass Style…") {
                     performMenuAction(#selector(AppDelegate.showGlassStyleMenuFromContextMenu))
+                }
+
+                Menu("Background Photo") {
+                    Button("None") {
+                        var updated = currentLocation.settings
+                        updated.backgroundPhotoID = nil
+                        WorldClockManager.shared.updateClockSettings(for: location.id, settings: updated)
+                        cacheUpdatedSettings(updated)
+                    }
+
+                    if !photoManager.savedPhotos.isEmpty {
+                        Divider()
+
+                        ForEach(photoManager.savedPhotos, id: \.id) { photo in
+                            Button {
+                                var updated = currentLocation.settings
+                                updated.backgroundPhotoID = photo.id
+                                WorldClockManager.shared.updateClockSettings(for: location.id, settings: updated)
+                                cacheUpdatedSettings(updated)
+                            } label: {
+                                if currentLocation.settings.backgroundPhotoID == photo.id {
+                                    Label(photo.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(photo.displayName)
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        Menu("Opacity") {
+                            ForEach([1.0, 0.8, 0.6, 0.4, 0.2], id: \.self) { opacity in
+                                Button {
+                                    var updated = currentLocation.settings
+                                    updated.backgroundPhotoOpacity = opacity
+                                    WorldClockManager.shared.updateClockSettings(for: location.id, settings: updated)
+                                    cacheUpdatedSettings(updated)
+                                } label: {
+                                    let currentOpacity = currentLocation.settings.backgroundPhotoOpacity
+                                    if abs(currentOpacity - opacity) < 0.001 {
+                                        Label("\(Int(opacity * 100))%", systemImage: "checkmark")
+                                    } else {
+                                        Text("\(Int(opacity * 100))%")
+                                    }
+                                }
+                            }
+                        }
+
+                        Menu("Display Mode") {
+                            Button {
+                                var updated = currentLocation.settings
+                                updated.backgroundPhotoAspectMode = "fill"
+                                WorldClockManager.shared.updateClockSettings(for: location.id, settings: updated)
+                                cacheUpdatedSettings(updated)
+                            } label: {
+                                if currentLocation.settings.backgroundPhotoAspectMode == "fill" {
+                                    Label("Aspect Fill", systemImage: "checkmark")
+                                } else {
+                                    Text("Aspect Fill")
+                                }
+                            }
+                            Button {
+                                var updated = currentLocation.settings
+                                updated.backgroundPhotoAspectMode = "fit"
+                                WorldClockManager.shared.updateClockSettings(for: location.id, settings: updated)
+                                cacheUpdatedSettings(updated)
+                            } label: {
+                                if currentLocation.settings.backgroundPhotoAspectMode == "fit" {
+                                    Label("Aspect Fit", systemImage: "checkmark")
+                                } else {
+                                    Text("Aspect Fit")
+                                }
+                            }
+                        }
+                    } else {
+                        Text("No photos available")
+                        Button("Add Photo...") {
+                            performMenuAction(#selector(AppDelegate.showPhotoPicker))
+                        }
+                    }
                 }
 
                 Divider()

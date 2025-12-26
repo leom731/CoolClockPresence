@@ -247,6 +247,15 @@ struct ClockPresenceView: View {
             let currentScale = scale(for: geometry.size)
             let strokeColor = outlineColorForBackground()
             ZStack {
+                // Background photo layer (behind glass)
+                if let photoID = settingsManager.mainClockSettings.backgroundPhotoID {
+                    BackgroundPhotoView(
+                        photoID: photoID,
+                        opacity: settingsManager.mainClockSettings.backgroundPhotoOpacity,
+                        aspectMode: settingsManager.mainClockSettings.backgroundPhotoAspectMode
+                    )
+                }
+
                 GlassBackdrop(style: glassStyle, adjustableOpacity: adjustableBlackOpacity)
 
                 VStack(spacing: 2 * currentScale) {
@@ -465,6 +474,71 @@ struct ClockPresenceView: View {
 
                 Button("Glass Style…") {
                     performMenuAction(#selector(AppDelegate.showGlassStyleMenuFromContextMenu))
+                }
+
+                Menu("Background Photo") {
+                    Button("None") {
+                        settingsManager.updateMainClockProperty(\.backgroundPhotoID, value: nil as UUID?)
+                    }
+
+                    if !photoManager.savedPhotos.isEmpty {
+                        Divider()
+
+                        ForEach(photoManager.savedPhotos, id: \.id) { photo in
+                            Button {
+                                settingsManager.updateMainClockProperty(\.backgroundPhotoID, value: photo.id)
+                            } label: {
+                                if settingsManager.mainClockSettings.backgroundPhotoID == photo.id {
+                    Label(photo.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(photo.displayName)
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        Menu("Opacity") {
+                            ForEach([1.0, 0.8, 0.6, 0.4, 0.2], id: \.self) { opacity in
+                                Button {
+                                    settingsManager.updateMainClockProperty(\.backgroundPhotoOpacity, value: opacity)
+                                } label: {
+                                    let currentOpacity = settingsManager.mainClockSettings.backgroundPhotoOpacity
+                                    if abs(currentOpacity - opacity) < 0.001 {
+                                        Label("\(Int(opacity * 100))%", systemImage: "checkmark")
+                                    } else {
+                                        Text("\(Int(opacity * 100))%")
+                                    }
+                                }
+                            }
+                        }
+
+                        Menu("Display Mode") {
+                            Button {
+                                settingsManager.updateMainClockProperty(\.backgroundPhotoAspectMode, value: "fill")
+                            } label: {
+                                if settingsManager.mainClockSettings.backgroundPhotoAspectMode == "fill" {
+                                    Label("Aspect Fill", systemImage: "checkmark")
+                                } else {
+                                    Text("Aspect Fill")
+                                }
+                            }
+                            Button {
+                                settingsManager.updateMainClockProperty(\.backgroundPhotoAspectMode, value: "fit")
+                            } label: {
+                                if settingsManager.mainClockSettings.backgroundPhotoAspectMode == "fit" {
+                                    Label("Aspect Fit", systemImage: "checkmark")
+                                } else {
+                                    Text("Aspect Fit")
+                                }
+                            }
+                        }
+                    } else {
+                        Text("No photos available")
+                        Button("Add Photo...") {
+                            performMenuAction(#selector(AppDelegate.showPhotoPicker))
+                        }
+                    }
                 }
                 Divider()
 
