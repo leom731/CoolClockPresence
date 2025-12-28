@@ -246,7 +246,7 @@ struct ClockPresenceView: View {
         GeometryReader { geometry in
             let currentScale = scale(for: geometry.size)
             let strokeColor = outlineColorForBackground()
-            ZStack {
+            ZStack(alignment: .center) {
                 // Background photo layer (behind glass)
                 if let photoID = settingsManager.mainClockSettings.backgroundPhotoID {
                     BackgroundPhotoView(
@@ -400,6 +400,7 @@ struct ClockPresenceView: View {
                 }
                 .padding(.vertical, 6 * currentScale)
                 .padding(.horizontal, 10 * currentScale)
+                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
             }
             .contentShape(Rectangle())
             .onDrop(of: ["com.coolclock.worldclock"], isTargeted: nil) { providers in
