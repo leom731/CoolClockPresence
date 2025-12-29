@@ -387,31 +387,43 @@ struct ClockPresenceView: View {
 
                     // Docked World Clocks
                     if !worldClockManager.dockedClocks.isEmpty {
-                        let estimatedClockHeight: CGFloat = 50 * currentScale
-                        let totalClocksHeight = CGFloat(worldClockManager.dockedClocks.count) * estimatedClockHeight
-                        let maxAvailableHeight = geometry.size.height * 0.4
-                        let needsScrolling = totalClocksHeight > maxAvailableHeight
+                        // Calculate if we have enough space for world clocks without cutting off main clock
+                        let mainClockHeight: CGFloat = 45 * currentScale
+                        let batteryHeight: CGFloat = showBattery && purchaseManager.isPremium ? 35 * currentScale : 0
+                        let dividerHeight: CGFloat = 20 * currentScale
+                        let firstWorldClockHeight: CGFloat = 50 * currentScale
+                        let verticalPadding: CGFloat = 12 * currentScale
 
-                        Divider()
-                            .frame(height: 1)
-                            .background(Color.white.opacity(0.2))
-                            .padding(.vertical, 6 * currentScale)
+                        let requiredHeight = mainClockHeight + batteryHeight + dividerHeight + firstWorldClockHeight + verticalPadding
+                        let hasEnoughSpace = geometry.size.height >= requiredHeight
 
-                        if needsScrolling {
-                            ScrollView(.vertical, showsIndicators: true) {
+                        if hasEnoughSpace {
+                            let estimatedClockHeight: CGFloat = 50 * currentScale
+                            let totalClocksHeight = CGFloat(worldClockManager.dockedClocks.count) * estimatedClockHeight
+                            let maxAvailableHeight = geometry.size.height * 0.4
+                            let needsScrolling = totalClocksHeight > maxAvailableHeight
+
+                            Divider()
+                                .frame(height: 1)
+                                .background(Color.white.opacity(0.2))
+                                .padding(.vertical, 6 * currentScale)
+
+                            if needsScrolling {
+                                ScrollView(.vertical, showsIndicators: true) {
+                                    VStack(spacing: 0) {
+                                        ForEach(worldClockManager.dockedClocks) { location in
+                                            DockedWorldClockView(location: location, scale: currentScale)
+                                                .padding(.bottom, 4 * currentScale)
+                                        }
+                                    }
+                                }
+                                .frame(maxHeight: maxAvailableHeight)
+                            } else {
                                 VStack(spacing: 0) {
                                     ForEach(worldClockManager.dockedClocks) { location in
                                         DockedWorldClockView(location: location, scale: currentScale)
                                             .padding(.bottom, 4 * currentScale)
                                     }
-                                }
-                            }
-                            .frame(maxHeight: maxAvailableHeight)
-                        } else {
-                            VStack(spacing: 0) {
-                                ForEach(worldClockManager.dockedClocks) { location in
-                                    DockedWorldClockView(location: location, scale: currentScale)
-                                        .padding(.bottom, 4 * currentScale)
                                 }
                             }
                         }
