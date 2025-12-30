@@ -161,27 +161,11 @@ class WorldClockManager: ObservableObject {
             return
         }
 
-        var updatedLocation = location
-
-        // Update size to match the main clock's undocked size when opening
-        if let mainWindow = NSApp.windows.first(where: { $0.title == "CoolClockPresence" }) {
-            let targetSize = undockedMainClockSize(using: mainWindow)
-            updatedLocation.windowWidth = targetSize.width
-            updatedLocation.windowHeight = targetSize.height
-
-            // Update saved location with new size
-            if let index = savedLocations.firstIndex(where: { $0.id == location.id }) {
-                savedLocations[index].windowWidth = targetSize.width
-                savedLocations[index].windowHeight = targetSize.height
-                saveLocations()
-            }
-        }
-
-        // Notify AppDelegate to create the window
+        // Notify AppDelegate to create the window using the saved size from the location
         NotificationCenter.default.post(
             name: NSNotification.Name("OpenWorldClock"),
             object: nil,
-            userInfo: ["location": updatedLocation]
+            userInfo: ["location": location]
         )
         markWindowOpen(location.id)
     }

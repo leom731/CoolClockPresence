@@ -1543,8 +1543,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 newFrame.origin.y = currentFrame.maxY - targetHeight  // Keep top edge in place
                 panel.setFrame(newFrame, display: true, animate: true)
             }
-        } else if currentFrame.height < minHeight {
-            // Grow the window to fit newly docked clocks if it's currently too small
+        } else if lastDockedCount < dockedCount && currentFrame.height < minHeight {
+            // Grow the window to fit NEWLY docked clocks if it's currently too small
+            // Only expand when a NEW clock is docked (lastDockedCount < dockedCount), not on app launch
             var newFrame = currentFrame
             newFrame.size.height = minHeight
             newFrame.origin.y = currentFrame.maxY - minHeight  // Keep top edge in place
