@@ -34,6 +34,11 @@ struct PhotoWindowView: View {
         NSApplication.shared.delegate as? AppDelegate
     }
 
+    // Get the current photo from the manager to ensure we have the latest state
+    private var currentPhoto: PhotoItem {
+        photoManager.savedPhotos.first(where: { $0.id == photo.id }) ?? photo
+    }
+
     private func performMenuAction(_ selector: Selector) {
         let send = {
             if !NSApp.sendAction(selector, to: NSApp.delegate, from: nil) {
@@ -58,7 +63,7 @@ struct PhotoWindowView: View {
                 if let image {
                     Image(nsImage: image)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
+                        .aspectRatio(contentMode: currentPhoto.aspectMode == "fit" ? .fit : .fill)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
                 } else {
@@ -169,6 +174,27 @@ struct PhotoWindowView: View {
             opacityButton(title: "80%", value: 0.8)
             opacityButton(title: "60%", value: 0.6)
             opacityButton(title: "40%", value: 0.4)
+        }
+
+        Menu("Display Mode") {
+            Button {
+                photoManager.updatePhotoAspectMode(id: photo.id, aspectMode: "fill")
+            } label: {
+                if currentPhoto.aspectMode == "fill" {
+                    Label("Aspect Fill", systemImage: "checkmark")
+                } else {
+                    Text("Aspect Fill")
+                }
+            }
+            Button {
+                photoManager.updatePhotoAspectMode(id: photo.id, aspectMode: "fit")
+            } label: {
+                if currentPhoto.aspectMode == "fit" {
+                    Label("Aspect Fit", systemImage: "checkmark")
+                } else {
+                    Text("Aspect Fit")
+                }
+            }
         }
 
         Divider()

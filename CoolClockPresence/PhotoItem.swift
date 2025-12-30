@@ -20,6 +20,7 @@ struct PhotoItem: Codable, Identifiable, Equatable {
     var windowY: Double
     var windowWidth: Double
     var windowHeight: Double
+    var aspectMode: String
 
     init(
         id: UUID = UUID(),
@@ -29,7 +30,8 @@ struct PhotoItem: Codable, Identifiable, Equatable {
         windowX: Double = -1,
         windowY: Double = -1,
         windowWidth: Double = 180,
-        windowHeight: Double = 180
+        windowHeight: Double = 180,
+        aspectMode: String = "fill"
     ) {
         self.id = id
         self.displayName = displayName
@@ -39,6 +41,7 @@ struct PhotoItem: Codable, Identifiable, Equatable {
         self.windowY = windowY
         self.windowWidth = windowWidth
         self.windowHeight = windowHeight
+        self.aspectMode = aspectMode
     }
 
     static func == (lhs: PhotoItem, rhs: PhotoItem) -> Bool {

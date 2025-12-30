@@ -216,6 +216,13 @@ final class PhotoWindowManager: ObservableObject {
         }
     }
 
+    func updatePhotoAspectMode(id: UUID, aspectMode: String) {
+        if let index = savedPhotos.firstIndex(where: { $0.id == id }) {
+            savedPhotos[index].aspectMode = aspectMode
+            savePhotos()
+        }
+    }
+
     func closeAllPhotos() {
         var didChange = false
 
