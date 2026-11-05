@@ -366,7 +366,7 @@ struct ClockPresenceView: View {
                         HStack(spacing: 6 * currentScale) {
                             BatteryIndicatorView(
                                 level: batteryMonitor.batteryLevel,
-                                isCharging: batteryMonitor.isCharging,
+                                isPluggedIn: batteryMonitor.isPluggedIn,
                                 scale: currentScale
                             )
 
@@ -1016,14 +1016,10 @@ class HoverControlView: NSView {
 
 struct BatteryIndicatorView: View {
     let level: Int
-    let isCharging: Bool
+    let isPluggedIn: Bool
     let scale: CGFloat
 
     private var batteryColor: Color {
-        if isCharging {
-            return Color(white: 0.7)
-        }
-
         if level <= 25 {
             return .orange
         } else if level <= 50 {
@@ -1034,30 +1030,30 @@ struct BatteryIndicatorView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            // Battery body outline
-            RoundedRectangle(cornerRadius: 2 * scale)
-                .strokeBorder(batteryColor.opacity(0.92), lineWidth: 1.5 * scale)
-                .frame(width: 22 * scale, height: 11 * scale)
-
-            // Battery fill
-            RoundedRectangle(cornerRadius: 1.5 * scale)
-                .fill(batteryColor.opacity(0.92))
-                .frame(width: max(0, (20 * scale) * CGFloat(level) / 100), height: 9 * scale)
-                .padding(.leading, 1 * scale)
-
-            // Battery terminal (nub on right side)
-            RoundedRectangle(cornerRadius: 1 * scale)
-                .fill(batteryColor.opacity(0.92))
-                .frame(width: 1.5 * scale, height: 6 * scale)
-                .offset(x: 22.5 * scale)
-
-            // Charging bolt icon overlay
-            if isCharging {
+        Group {
+            if isPluggedIn {
                 Image(systemName: "bolt.fill")
-                    .font(.system(size: 7 * scale, weight: .bold))
-                    .foregroundStyle(.black.opacity(0.8))
-                    .offset(x: 7.5 * scale)
+                    .font(.system(size: 13 * scale, weight: .semibold))
+                    .foregroundStyle(Color.green.opacity(0.92))
+            } else {
+                ZStack(alignment: .leading) {
+                    // Battery body outline
+                    RoundedRectangle(cornerRadius: 2 * scale)
+                        .strokeBorder(batteryColor.opacity(0.92), lineWidth: 1.5 * scale)
+                        .frame(width: 22 * scale, height: 11 * scale)
+
+                    // Battery fill
+                    RoundedRectangle(cornerRadius: 1.5 * scale)
+                        .fill(batteryColor.opacity(0.92))
+                        .frame(width: max(0, (20 * scale) * CGFloat(level) / 100), height: 9 * scale)
+                        .padding(.leading, 1 * scale)
+
+                    // Battery terminal (nub on right side)
+                    RoundedRectangle(cornerRadius: 1 * scale)
+                        .fill(batteryColor.opacity(0.92))
+                        .frame(width: 1.5 * scale, height: 6 * scale)
+                        .offset(x: 22.5 * scale)
+                }
             }
         }
         .frame(width: 24 * scale, height: 11 * scale)
@@ -1138,7 +1134,9 @@ class BatteryMonitor: ObservableObject {
     }
 
     var batteryPercentageColor: Color {
-        if batteryLevel <= 20 {
+        if isPluggedIn {
+            return .green
+        } else if batteryLevel <= 20 {
             return .red
         } else if batteryLevel <= 50 {
             return .orange

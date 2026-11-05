@@ -1458,6 +1458,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     @objc private func updateWindowLevel() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.updateWindowLevel()
+            }
+            return
+        }
+
         guard let panel = window else { return }
         let isAlwaysOnTop = settingsManager.mainClockSettings.alwaysOnTop
         // Use high window level for full screen compatibility when always on top
