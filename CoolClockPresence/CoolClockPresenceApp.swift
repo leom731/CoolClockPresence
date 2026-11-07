@@ -90,6 +90,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var windowSizeBeforeDocking: CGSize?
     private var lastDockedCount: Int = 0
     private var didRestoreAuxWindows = false
+    private let displayPositionStore = DisplayAwareWindowPositionStore.shared
+    private var displayAwareWindows: [String: NSWindow] = [:]
+    private var isRestoringDisplayPositions = false
     private var appStoreProductID: String? {
         // Prefer an Info.plist override so you can set this without code changes
         let rawID = (Bundle.main.object(forInfoDictionaryKey: "AppStoreProductID") as? String) ?? "0000000000"
@@ -203,6 +206,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             self,
             selector: #selector(handleDockingChanged),
             name: NSNotification.Name("WorldClockDockingChanged"),
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleScreenParametersChanged),
+            name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
 
@@ -975,6 +985,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 self.lastKnownWindowPresetValue = position.rawValue
                 self.defaults.set(position.rawValue, forKey: "windowPositionPreset")
             }
+            self.displayPositionStore.save(frame: newFrame, for: "main", on: screen, makePreferred: true)
 
             DispatchQueue.main.async { [weak self] in
                 self?.isApplyingPositionPreset = false
@@ -1356,7 +1367,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let presetIsPersisted = defaults.object(forKey: "windowPositionPreset") != nil
         let presetValue = presetIsPersisted ? defaults.string(forKey: "windowPositionPreset") : nil
 
-        if let presetValue,
+        if let restoredFrame = displayPositionStore.restoredFrame(for: "main") {
+            panel.setFrame(restoredFrame, display: false)
+        } else if let presetValue,
            let preset = ClockWindowPosition(rawValue: presetValue) {
             applyWindowPosition(preset)
         } else if savedX >= 0 && savedY >= 0 {
@@ -1371,6 +1384,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         panel.delegate = self
+        registerDisplayAwareWindow(panel, role: "main")
 
         // Observe window position changes to save them
         NotificationCenter.default.addObserver(
@@ -1484,10 +1498,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let origin = panel.frame.origin
         defaults.set(origin.x, forKey: "windowX")
         defaults.set(origin.y, forKey: "windowY")
-        if !isApplyingPositionPreset {
+        if !isApplyingPositionPreset && !isRestoringDisplayPositions {
             defaults.set(ClockWindowPosition.customIdentifier, forKey: "windowPositionPreset")
             lastKnownWindowPresetValue = ClockWindowPosition.customIdentifier
         }
+        saveDisplayAwarePosition(of: panel, role: "main")
     }
 
     @objc func windowDidResize(_ notification: Notification) {
@@ -1499,6 +1514,43 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Keep track of the preferred undocked size so we can return to it after docking
         if worldClockManager.dockedClocks.isEmpty {
             capturePreDockSize(from: CGSize(width: size.width, height: size.height))
+        }
+        saveDisplayAwarePosition(of: panel, role: "main")
+    }
+
+    private func registerDisplayAwareWindow(_ window: NSWindow, role: String) {
+        displayAwareWindows[role] = window
+        displayPositionStore.save(
+            frame: window.frame,
+            for: role,
+            on: window.screen,
+            makePreferred: !displayPositionStore.hasPreferredDisplay(for: role)
+        )
+    }
+
+    private func saveDisplayAwarePosition(of window: NSWindow, role: String) {
+        displayPositionStore.save(
+            frame: window.frame,
+            for: role,
+            on: window.screen,
+            makePreferred: NSEvent.pressedMouseButtons != 0
+        )
+    }
+
+    @objc private func handleScreenParametersChanged() {
+        // AppKit may finish moving windows shortly after this notification. Restore on the
+        // next run-loop pass, but only when each window's preferred display is connected.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isRestoringDisplayPositions = true
+            for (role, window) in self.displayAwareWindows where window.isVisible {
+                guard self.displayPositionStore.preferredDisplayIsConnected(for: role),
+                      let frame = self.displayPositionStore.restoredFrame(for: role) else { continue }
+                window.setFrame(frame, display: true)
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.isRestoringDisplayPositions = false
+            }
         }
     }
 
@@ -1675,7 +1727,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             return
         }
 
-        let restoredFrame = worldClockManager.restoredUnifiedWindowFrame
+        let displayRole = "world-unified"
+        let restoredFrame = displayPositionStore.restoredFrame(for: displayRole)
+            ?? worldClockManager.restoredUnifiedWindowFrame
         let panel = ActivatingPanel(
             contentRect: restoredFrame ?? NSRect(x: 0, y: 0, width: 360, height: 320),
             styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -1713,6 +1767,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
 
         unifiedWorldClocksWindow = panel
+        registerDisplayAwareWindow(panel, role: displayRole)
         worldClockManager.registerUnifiedWindow(panel)
         NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification,
@@ -1721,6 +1776,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         ) { [weak self, weak panel] _ in
             if let frame = panel?.frame {
                 self?.worldClockManager.updateUnifiedWindowFrame(frame)
+                if let panel { self?.saveDisplayAwarePosition(of: panel, role: displayRole) }
             }
         }
         NotificationCenter.default.addObserver(
@@ -1730,6 +1786,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         ) { [weak self, weak panel] _ in
             if let frame = panel?.frame {
                 self?.worldClockManager.updateUnifiedWindowFrame(frame)
+                if let panel { self?.saveDisplayAwarePosition(of: panel, role: displayRole) }
             }
         }
         NotificationCenter.default.addObserver(
@@ -1738,6 +1795,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             queue: .main
         ) { [weak self] _ in
             self?.unifiedWorldClocksWindow = nil
+            self?.displayAwareWindows.removeValue(forKey: displayRole)
             self?.worldClockManager.unregisterUnifiedWindow()
         }
         panel.orderFrontRegardless()
@@ -1745,9 +1803,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     private func createWorldClockWindow(for location: WorldClockLocation, timeZone: TimeZone) {
+        let displayRole = "world-\(location.id.uuidString)"
+        let initialFrame = displayPositionStore.restoredFrame(for: displayRole)
+            ?? NSRect(x: location.windowX, y: location.windowY, width: location.windowWidth, height: location.windowHeight)
         // Create the world clock window using ActivatingPanel
         let panel = ActivatingPanel(
-            contentRect: NSRect(x: location.windowX, y: location.windowY, width: location.windowWidth, height: location.windowHeight),
+            contentRect: initialFrame,
             styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -1797,6 +1858,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         // Register with manager
         worldClockManager.registerWorldClockWindow(panel, for: location.id)
+        registerDisplayAwareWindow(panel, role: displayRole)
 
         // Show the window
         panel.orderFrontRegardless()
@@ -1812,6 +1874,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             let origin = panel.frame.origin
             let size = panel.frame.size
             self?.worldClockManager.updateLocationWindow(id: locationID, x: origin.x, y: origin.y, width: size.width, height: size.height)
+            self?.saveDisplayAwarePosition(of: panel, role: displayRole)
         }
 
         NotificationCenter.default.addObserver(
@@ -1823,6 +1886,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             let origin = panel.frame.origin
             let size = panel.frame.size
             self?.worldClockManager.updateLocationWindow(id: locationID, x: origin.x, y: origin.y, width: size.width, height: size.height)
+            self?.saveDisplayAwarePosition(of: panel, role: displayRole)
         }
 
         // Observe window close
@@ -1832,6 +1896,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             queue: nil
         ) { [weak self, locationID = location.id] _ in
             self?.worldClockManager.unregisterWorldClockWindow(for: locationID)
+            self?.displayAwareWindows.removeValue(forKey: displayRole)
         }
 
         // Set delegate to handle close button
