@@ -18,16 +18,23 @@ class WorldClockManager: ObservableObject {
 
     @Published private(set) var savedLocations: [WorldClockLocation] = []
     @Published private(set) var hasVisibleWindows: Bool = false
+    @Published private(set) var unifiedWindowLocationIDs: [UUID] = []
     private var openWindows: [UUID: NSPanel] = [:]
+    private weak var unifiedWindow: NSPanel?
     private var openWindowIDs: Set<UUID> = []
     private var areWorldClocksHidden: Bool = false
     private let settingsManager = ClockSettingsManager.shared
     private let defaults = UserDefaults.standard
     private let openWindowIDsKey = "openWorldClockWindows"
+    private let unifiedWindowIDsKey = "unifiedWorldClockIDs"
+    private let unifiedWindowOpenKey = "unifiedWorldClockWasOpen"
+    private let unifiedWindowFrameKey = "unifiedWorldClockFrame"
+    private var unifiedWindowShouldRestore = false
 
     private init() {
         loadSavedLocations()
         loadOpenWindowIDs()
+        loadUnifiedWindowState()
 
         // Observe photo deletions to clear from world clock backgrounds if needed
         NotificationCenter.default.addObserver(
@@ -86,6 +93,22 @@ class WorldClockManager: ObservableObject {
         print("✅ Added and docked clock: \(newLocation.displayName)")
     }
 
+    /// Add a location directly to the combined, detached world-clock window.
+    func addLocationToUnifiedWindow(_ location: WorldClockLocation) {
+        if let existing = savedLocations.first(where: { $0.id == location.id }) {
+            addClockToUnifiedWindow(existing.id)
+            return
+        }
+
+        var newLocation = location
+        newLocation.settings = settingsManager.mainClockSettings
+        newLocation.isDocked = false
+        newLocation.dockedOrder = savedLocations.count
+        savedLocations.append(newLocation)
+        saveLocations()
+        addClockToUnifiedWindow(newLocation.id)
+    }
+
     /// Remove a world clock location
     func removeLocation(id: UUID) {
         // Check if the clock being removed was docked
@@ -93,6 +116,9 @@ class WorldClockManager: ObservableObject {
 
         closeWorldClock(for: id)
         savedLocations.removeAll { $0.id == id }
+        unifiedWindowLocationIDs.removeAll { $0 == id }
+        saveUnifiedWindowState()
+        closeUnifiedWindowIfEmpty()
         saveLocations()
 
         // Notify main window to refresh if a docked clock was removed
@@ -109,6 +135,9 @@ class WorldClockManager: ObservableObject {
 
         let wasDocked = savedLocations[index].isDocked
         savedLocations[index].isDocked = false
+        unifiedWindowLocationIDs.removeAll { $0 == id }
+        saveUnifiedWindowState()
+        closeUnifiedWindowIfEmpty()
 
         // Close any open window for this clock
         closeWorldClock(for: id)
@@ -136,7 +165,7 @@ class WorldClockManager: ObservableObject {
     }
 
     private func updateVisibility() {
-        hasVisibleWindows = !openWindows.isEmpty && !areWorldClocksHidden
+        hasVisibleWindows = (!openWindows.isEmpty || unifiedWindow?.isVisible == true) && !areWorldClocksHidden
     }
 
     // MARK: - Window Management
@@ -220,6 +249,7 @@ class WorldClockManager: ObservableObject {
     /// Hide every open world clock without closing the windows so they can be restored.
     func hideAllOpenWorldClocks() {
         openWindows.values.forEach { $0.orderOut(nil) }
+        unifiedWindow?.orderOut(nil)
         areWorldClocksHidden = true
         updateVisibility()
     }
@@ -227,6 +257,7 @@ class WorldClockManager: ObservableObject {
     /// Bring back every open world clock window.
     func showAllOpenWorldClocks() {
         openWindows.values.forEach { $0.orderFrontRegardless() }
+        unifiedWindow?.orderFrontRegardless()
         areWorldClocksHidden = false
         updateVisibility()
     }
@@ -269,6 +300,9 @@ class WorldClockManager: ObservableObject {
 
         // Set docking state
         savedLocations[index].isDocked = true
+        unifiedWindowLocationIDs.removeAll { $0 == locationID }
+        saveUnifiedWindowState()
+        closeUnifiedWindowIfEmpty()
         savedLocations[index].dockedOrder = nextDockedOrder()
         markWindowClosed(locationID)
 
@@ -290,6 +324,13 @@ class WorldClockManager: ObservableObject {
         // Remove docking state
         savedLocations[index].isDocked = false
 
+        // A newly detached clock starts at the main clock's current size.
+        if let mainWindow = NSApp.windows.first(where: { $0.title == "CoolClockPresence" }) {
+            let targetSize = undockedMainClockSize(using: mainWindow)
+            savedLocations[index].windowWidth = targetSize.width
+            savedLocations[index].windowHeight = targetSize.height
+        }
+
         saveLocations()
 
         // Open as floating window (will restore saved position)
@@ -299,6 +340,161 @@ class WorldClockManager: ObservableObject {
         NotificationCenter.default.post(name: NSNotification.Name("WorldClockDockingChanged"), object: nil)
 
         print("✅ Undocked clock: \(savedLocations[index].displayName)")
+    }
+
+    /// Undock every clock currently attached to the main clock into one window.
+    func undockAllClocks() {
+        let ids = dockedClocks.map(\.id)
+        guard !ids.isEmpty else { return }
+
+        // Match the main clock's width, but fit height to the detached clocks.
+        if let mainWindow = NSApp.windows.first(where: { $0.title == "CoolClockPresence" }) {
+            let currentFrame = restoredUnifiedWindowFrame ?? mainWindow.frame
+            let storedScale = defaults.double(forKey: "unifiedWorldClockFontScale")
+            let scale = storedScale > 0 ? storedScale : 1.0
+            let fittedHeight = unifiedWindowHeight(clockCount: ids.count, fontScale: scale)
+            let detachedFrame = NSRect(
+                x: currentFrame.origin.x,
+                y: currentFrame.midY - fittedHeight / 2,
+                width: mainWindow.frame.width,
+                height: fittedHeight
+            )
+            updateUnifiedWindowFrame(detachedFrame)
+        }
+
+        for id in ids {
+            if let index = savedLocations.firstIndex(where: { $0.id == id }) {
+                savedLocations[index].isDocked = false
+            }
+            closeWorldClock(for: id)
+        }
+        unifiedWindowLocationIDs = ids
+        unifiedWindowShouldRestore = true
+        saveUnifiedWindowState()
+        saveLocations()
+        NotificationCenter.default.post(name: NSNotification.Name("WorldClockDockingChanged"), object: nil)
+        presentUnifiedWindow()
+    }
+
+    /// Put another saved clock in the combined detached window.
+    func addClockToUnifiedWindow(_ locationID: UUID) {
+        guard let index = savedLocations.firstIndex(where: { $0.id == locationID }) else { return }
+        savedLocations[index].isDocked = false
+        closeWorldClock(for: locationID)
+        if !unifiedWindowLocationIDs.contains(locationID) {
+            unifiedWindowLocationIDs.append(locationID)
+        }
+        unifiedWindowShouldRestore = true
+        saveUnifiedWindowState()
+        saveLocations()
+        NotificationCenter.default.post(name: NSNotification.Name("WorldClockDockingChanged"), object: nil)
+        presentUnifiedWindow()
+    }
+
+    func removeClockFromUnifiedWindow(_ locationID: UUID) {
+        unifiedWindowLocationIDs.removeAll { $0 == locationID }
+        saveUnifiedWindowState()
+        closeUnifiedWindowIfEmpty()
+    }
+
+    func redockAllUnifiedClocks() {
+        let ids = unifiedWindowLocationIDs
+        for id in ids {
+            dockClock(for: id)
+        }
+    }
+
+    var unifiedWindowSettings: ClockSettings {
+        unifiedWindowLocationIDs.compactMap { id in
+            savedLocations.first(where: { $0.id == id })?.settings
+        }.first ?? .default
+    }
+
+    func isInUnifiedWindow(_ locationID: UUID) -> Bool {
+        unifiedWindowLocationIDs.contains(locationID)
+    }
+
+    func updateUnifiedClockSettings<T>(_ keyPath: WritableKeyPath<ClockSettings, T>, value: T) {
+        let unifiedIDs = Set(unifiedWindowLocationIDs)
+        savedLocations = savedLocations.map { location in
+            guard unifiedIDs.contains(location.id) else { return location }
+            var updated = location
+            updated.settings[keyPath: keyPath] = value
+            return updated
+        }
+        saveLocations()
+    }
+
+    func setUnifiedAlwaysOnTop(_ enabled: Bool) {
+        updateUnifiedClockSettings(\.alwaysOnTop, value: enabled)
+        unifiedWindow?.level = enabled
+            ? NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.popUpMenuWindow)))
+            : .normal
+    }
+
+    func registerUnifiedWindow(_ window: NSPanel) {
+        unifiedWindow = window
+        window.level = unifiedWindowSettings.alwaysOnTop
+            ? NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.popUpMenuWindow)))
+            : .normal
+        unifiedWindowShouldRestore = true
+        saveUnifiedWindowState()
+        updateVisibility()
+    }
+
+    func unregisterUnifiedWindow() {
+        unifiedWindow = nil
+        updateVisibility()
+    }
+
+    var restoredUnifiedWindowFrame: NSRect? {
+        guard let value = defaults.string(forKey: unifiedWindowFrameKey) else { return nil }
+        let frame = NSRectFromString(value)
+        return frame.width > 0 && frame.height > 0 ? frame : nil
+    }
+
+    func updateUnifiedWindowFrame(_ frame: NSRect) {
+        defaults.set(NSStringFromRect(frame), forKey: unifiedWindowFrameKey)
+        if let unifiedWindow, unifiedWindow.frame != frame {
+            unifiedWindow.setFrame(frame, display: true)
+        }
+    }
+
+    func fitUnifiedWindowToClocks(fontScale: Double) {
+        guard !unifiedWindowLocationIDs.isEmpty else { return }
+        let currentFrame = unifiedWindow?.frame ?? restoredUnifiedWindowFrame ?? NSRect(x: 0, y: 0, width: 360, height: 180)
+        let fittedHeight = unifiedWindowHeight(clockCount: unifiedWindowLocationIDs.count, fontScale: fontScale)
+        let fittedFrame = NSRect(
+            x: currentFrame.origin.x,
+            y: currentFrame.midY - fittedHeight / 2,
+            width: currentFrame.width,
+            height: fittedHeight
+        )
+        updateUnifiedWindowFrame(fittedFrame)
+    }
+
+    private func unifiedWindowHeight(clockCount: Int, fontScale: Double) -> CGFloat {
+        let verticalPadding: CGFloat = 16
+        let rowHeight = CGFloat(68 * max(0.8, min(fontScale, 1.2)))
+        return max(80, min(720, verticalPadding + CGFloat(clockCount) * rowHeight))
+    }
+
+    private func presentUnifiedWindow() {
+        if let unifiedWindow {
+            unifiedWindow.orderFrontRegardless()
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            NotificationCenter.default.post(name: NSNotification.Name("OpenUnifiedWorldClocks"), object: nil)
+        }
+    }
+
+    private func closeUnifiedWindowIfEmpty() {
+        guard unifiedWindowLocationIDs.isEmpty else { return }
+        unifiedWindowShouldRestore = false
+        saveUnifiedWindowState()
+        unifiedWindow?.close()
+        unifiedWindow = nil
+        updateVisibility()
     }
 
     /// Get the next available docked order number
@@ -451,6 +647,27 @@ class WorldClockManager: ObservableObject {
 
         if didPrune {
             saveOpenWindowIDs()
+        }
+
+        unifiedWindowLocationIDs = unifiedWindowLocationIDs.filter { id in
+            savedLocations.contains(where: { $0.id == id && !$0.isDocked })
+        }
+        saveUnifiedWindowState()
+        if unifiedWindowShouldRestore && !unifiedWindowLocationIDs.isEmpty {
+            presentUnifiedWindow()
+        }
+    }
+
+    private func loadUnifiedWindowState() {
+        unifiedWindowShouldRestore = defaults.bool(forKey: unifiedWindowOpenKey)
+        guard let data = defaults.data(forKey: unifiedWindowIDsKey) else { return }
+        unifiedWindowLocationIDs = (try? JSONDecoder().decode([UUID].self, from: data)) ?? []
+    }
+
+    private func saveUnifiedWindowState() {
+        defaults.set(unifiedWindowShouldRestore, forKey: unifiedWindowOpenKey)
+        if let data = try? JSONEncoder().encode(unifiedWindowLocationIDs) {
+            defaults.set(data, forKey: unifiedWindowIDsKey)
         }
     }
 

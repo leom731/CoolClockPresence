@@ -16,10 +16,11 @@ import AppKit
 struct DockedWorldClockView: View {
     let location: WorldClockLocation
     let scale: CGFloat
+    var onAddWorldClock: (() -> Void)? = nil
+    var onRedockToMainClock: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("worldClockDimmed") private var isWorldClockDimmed: Bool = true
-    @StateObject private var settingsManager = ClockSettingsManager.shared
     @StateObject private var worldClockManager = WorldClockManager.shared
     @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var timelineRefresh: UUID = UUID()
@@ -32,12 +33,14 @@ struct DockedWorldClockView: View {
         liveLocation ?? location
     }
 
-    // Docked clocks always mirror the main clock's font family and color
+    private var unifiedWindowLocations: [WorldClockLocation] {
+        worldClockManager.unifiedWindowLocationIDs.compactMap { id in
+            worldClockManager.savedLocations.first(where: { $0.id == id })
+        }
+    }
+
     private var effectiveSettings: ClockSettings {
-        var settings = currentLocation.settings
-        settings.fontColorName = settingsManager.mainClockSettings.fontColorName
-        settings.fontDesign = settingsManager.mainClockSettings.fontDesign
-        return settings
+        currentLocation.settings
     }
 
     private var timeZone: TimeZone {
@@ -250,12 +253,42 @@ struct DockedWorldClockView: View {
                 .foregroundStyle(fontColor.opacity(0.92))
         }
         .contextMenu {
-            Button("Undock") {
-                WorldClockManager.shared.undockClock(for: location.id)
+            if let onAddWorldClock {
+                Button("Add World Clock…", action: onAddWorldClock)
+                Divider()
             }
 
-            Button("Remove from Dock") {
-                worldClockManager.hideLocation(id: location.id)
+            if let onRedockToMainClock {
+                if unifiedWindowLocations.count > 1 {
+                    Menu("Redock to Main Clock") {
+                        Button("All World Clocks") {
+                            worldClockManager.redockAllUnifiedClocks()
+                        }
+
+                        Divider()
+
+                        ForEach(unifiedWindowLocations) { unifiedLocation in
+                            Button(unifiedLocation.displayName) {
+                                worldClockManager.dockClock(for: unifiedLocation.id)
+                            }
+                        }
+                    }
+                } else {
+                    Button("Redock to Main Clock", action: onRedockToMainClock)
+                }
+            } else {
+                Menu("Undock") {
+                    Button("This World Clock") {
+                        WorldClockManager.shared.undockClock(for: location.id)
+                    }
+                    Button("All World Clocks Together") {
+                        WorldClockManager.shared.undockAllClocks()
+                    }
+                }
+
+                Button("Remove from Dock") {
+                    worldClockManager.hideLocation(id: location.id)
+                }
             }
 
             Button("Manage World Clocks...") {
@@ -270,6 +303,64 @@ struct DockedWorldClockView: View {
                 } else {
                     Text("Dim World Clock")
                 }
+            }
+
+            Divider()
+
+            Menu("Font Color") {
+                dockedFontColorButton("White", color: "white")
+                dockedFontColorButton("Green", color: "green")
+                if purchaseManager.isPremium {
+                    Divider()
+                    dockedFontColorButton("Black", color: "black")
+                    dockedFontColorButton("Cyan", color: "cyan")
+                    dockedFontColorButton("Red", color: "red")
+                    dockedFontColorButton("Orange", color: "orange")
+                    dockedFontColorButton("Yellow", color: "yellow")
+                    dockedFontColorButton("Blue", color: "blue")
+                    dockedFontColorButton("Purple", color: "purple")
+                    dockedFontColorButton("Pink", color: "pink")
+                    dockedFontColorButton("Mint", color: "mint")
+                    dockedFontColorButton("Teal", color: "teal")
+                    dockedFontColorButton("Indigo", color: "indigo")
+                }
+            }
+
+            if worldClockManager.isInUnifiedWindow(location.id),
+               worldClockManager.unifiedWindowLocationIDs.count > 1 {
+                Menu("All Clocks Font Color") {
+                    allClocksFontColorButton("White", color: "white")
+                    allClocksFontColorButton("Green", color: "green")
+                    if purchaseManager.isPremium {
+                        Divider()
+                        allClocksFontColorButton("Black", color: "black")
+                        allClocksFontColorButton("Cyan", color: "cyan")
+                        allClocksFontColorButton("Red", color: "red")
+                        allClocksFontColorButton("Orange", color: "orange")
+                        allClocksFontColorButton("Yellow", color: "yellow")
+                        allClocksFontColorButton("Blue", color: "blue")
+                        allClocksFontColorButton("Purple", color: "purple")
+                        allClocksFontColorButton("Pink", color: "pink")
+                        allClocksFontColorButton("Mint", color: "mint")
+                        allClocksFontColorButton("Teal", color: "teal")
+                        allClocksFontColorButton("Indigo", color: "indigo")
+                    }
+                }
+            }
+
+            Menu("Font Style") {
+                dockedFontStyleButton("Rounded (Default)", style: "rounded")
+                dockedFontStyleButton("Monospaced", style: "monospaced")
+                dockedFontStyleButton("Serif", style: "serif")
+                dockedFontStyleButton("Time Circuit (LED)", style: "led")
+                Divider()
+                dockedFontStyleButton("Ultra Light", style: "ultralight")
+                dockedFontStyleButton("Thin", style: "thin")
+                dockedFontStyleButton("Light", style: "light")
+                dockedFontStyleButton("Medium", style: "medium")
+                dockedFontStyleButton("Bold", style: "bold")
+                dockedFontStyleButton("Heavy", style: "heavy")
+                dockedFontStyleButton("Black", style: "black")
             }
 
             Divider()
@@ -289,8 +380,8 @@ struct DockedWorldClockView: View {
             }
             syncLocation()
         }
-        .onReceive(worldClockManager.$savedLocations) { _ in
-            syncLocation()
+        .onReceive(worldClockManager.$savedLocations) { updatedLocations in
+            syncLocation(from: updatedLocations)
         }
     }
 
@@ -307,8 +398,44 @@ struct DockedWorldClockView: View {
         )
     }
 
+    @ViewBuilder private func dockedFontColorButton(_ title: String, color: String) -> some View {
+        Button { updateSetting(\.fontColorName, value: color) } label: {
+            if effectiveSettings.fontColorName == color { Label(title, systemImage: "checkmark") }
+            else { Text(title) }
+        }
+    }
+
+    @ViewBuilder private func dockedFontStyleButton(_ title: String, style: String) -> some View {
+        Button { updateSetting(\.fontDesign, value: style) } label: {
+            if effectiveSettings.fontDesign == style { Label(title, systemImage: "checkmark") }
+            else { Text(title) }
+        }
+    }
+
+    @ViewBuilder private func allClocksFontColorButton(_ title: String, color: String) -> some View {
+        Button {
+            worldClockManager.updateUnifiedClockSettings(\.fontColorName, value: color)
+        } label: {
+            Text(title)
+        }
+    }
+
+    private func updateSetting<T>(_ keyPath: WritableKeyPath<ClockSettings, T>, value: T) {
+        var updatedSettings = currentLocation.settings
+        updatedSettings[keyPath: keyPath] = value
+        worldClockManager.updateClockSettings(for: location.id, settings: updatedSettings)
+        cacheUpdatedSettings(updatedSettings)
+        timelineRefresh = UUID()
+    }
+
     private func syncLocation() {
         if let updated = worldClockManager.savedLocations.first(where: { $0.id == location.id }) {
+            liveLocation = updated
+        }
+    }
+
+    private func syncLocation(from locations: [WorldClockLocation]) {
+        if let updated = locations.first(where: { $0.id == location.id }) {
             liveLocation = updated
         }
     }

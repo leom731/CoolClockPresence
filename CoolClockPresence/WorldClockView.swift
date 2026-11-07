@@ -322,7 +322,7 @@ struct WorldClockView: View {
                 )
             )
             .contextMenu {
-                Button("Dock to Main Clock") {
+                Button("Redock to Main Clock") {
                     WorldClockManager.shared.dockClock(for: location.id)
                 }
 

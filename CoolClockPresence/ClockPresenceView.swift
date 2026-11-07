@@ -615,8 +615,13 @@ struct ClockPresenceView: View {
                         if !worldClockManager.dockedClocks.isEmpty {
                             Divider()
                             ForEach(worldClockManager.dockedClocks) { location in
-                                Button("📌 \(location.displayName)") {
-                                    worldClockManager.undockClock(for: location.id)
+                                Menu("📌 \(location.displayName)") {
+                                    Button("Undock This Clock") {
+                                        worldClockManager.undockClock(for: location.id)
+                                    }
+                                    Button("Undock All Together") {
+                                        worldClockManager.undockAllClocks()
+                                    }
                                 }
                             }
                         }
@@ -880,8 +885,13 @@ struct HoverAndWindowController: NSViewRepresentable {
         @Binding var showResizeHints: Bool
         var isPremium: Bool = false
         var disappearOnHover: Bool = true
+        var isMouseButtonPressed: Bool = false
+        var isPointerInside: Bool = false
+        var isContextMenuOpen: Bool = false
 
         private var updateWorkItem: DispatchWorkItem?
+        private var hoverWorkItem: DispatchWorkItem?
+        private let hoverDismissDelay: TimeInterval = 0.5
 
         init(isHovering: Binding<Bool>, isCommandKeyPressed: Binding<Bool>, mouseLocation: Binding<CGPoint>, showResizeHints: Binding<Bool>) {
             _isHovering = isHovering
@@ -895,7 +905,7 @@ struct HoverAndWindowController: NSViewRepresentable {
             updateWorkItem?.cancel()
 
             // Calculate the desired state
-            let shouldIgnore = hovering && !commandPressed && isPremium && disappearOnHover
+            let shouldIgnore = hovering && !commandPressed && !isMouseButtonPressed && !isContextMenuOpen && isPremium && disappearOnHover
 
             // Create a new work item
             let workItem = DispatchWorkItem { [weak window] in
@@ -908,8 +918,59 @@ struct HoverAndWindowController: NSViewRepresentable {
 
             updateWorkItem = workItem
 
-            // Schedule it to run AFTER the current layout pass
             DispatchQueue.main.async(execute: workItem)
+        }
+
+        func pointerEntered(window: NSWindow?) {
+            isPointerInside = true
+            scheduleHoverDismissal(window: window)
+        }
+
+        func pointerExited(window: NSWindow?) {
+            isPointerInside = false
+            hoverWorkItem?.cancel()
+            isHovering = false
+            updateWindow(window, hovering: false, commandPressed: isCommandKeyPressed)
+        }
+
+        func mouseButtonChanged(isPressed: Bool, window: NSWindow?) {
+            isMouseButtonPressed = isPressed
+            hoverWorkItem?.cancel()
+
+            if isPressed {
+                isHovering = false
+                updateWindow(window, hovering: false, commandPressed: isCommandKeyPressed)
+            } else if isPointerInside {
+                scheduleHoverDismissal(window: window)
+            }
+        }
+
+        func contextMenuChanged(isOpen: Bool, window: NSWindow?) {
+            isContextMenuOpen = isOpen
+            hoverWorkItem?.cancel()
+
+            if isOpen {
+                isHovering = false
+                updateWindow(window, hovering: false, commandPressed: isCommandKeyPressed)
+            } else if isPointerInside {
+                scheduleHoverDismissal(window: window)
+            }
+        }
+
+        private func scheduleHoverDismissal(window: NSWindow?) {
+            hoverWorkItem?.cancel()
+
+            let workItem = DispatchWorkItem { [weak self, weak window] in
+                guard let self,
+                      self.isPointerInside,
+                      !self.isMouseButtonPressed,
+                      !self.isContextMenuOpen else { return }
+                self.isHovering = true
+                self.updateWindow(window, hovering: true, commandPressed: self.isCommandKeyPressed)
+            }
+
+            hoverWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + hoverDismissDelay, execute: workItem)
         }
     }
 }
@@ -918,21 +979,25 @@ class HoverControlView: NSView {
     weak var coordinator: HoverAndWindowController.Coordinator?
     private var trackingArea: NSTrackingArea?
     private var eventMonitor: Any?
+    private var menuNotificationObservers: [NSObjectProtocol] = []
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setupCommandKeyMonitor()
+        setupMenuTrackingObservers()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setupCommandKeyMonitor()
+        setupMenuTrackingObservers()
     }
 
     deinit {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
         }
+        menuNotificationObservers.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     // Return zero intrinsic content size to not influence layout
@@ -947,12 +1012,36 @@ class HoverControlView: NSView {
     }
 
     private func setupCommandKeyMonitor() {
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            let isPressed = event.modifierFlags.contains(.command)
-            self?.coordinator?.isCommandKeyPressed = isPressed
-            self?.updateWindowState()
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp]) { [weak self] event in
+            guard let self else { return event }
+
+            if event.type == .flagsChanged {
+                self.coordinator?.isCommandKeyPressed = event.modifierFlags.contains(.command)
+            } else if event.window === self.window {
+                self.coordinator?.mouseButtonChanged(
+                    isPressed: event.type == .leftMouseDown || event.type == .rightMouseDown,
+                    window: self.window
+                )
+            }
+
+            self.updateWindowState()
             return event
         }
+    }
+
+    private func setupMenuTrackingObservers() {
+        let center = NotificationCenter.default
+
+        menuNotificationObservers = [
+            center.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                self.coordinator?.contextMenuChanged(isOpen: true, window: self.window)
+            },
+            center.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                self.coordinator?.contextMenuChanged(isOpen: false, window: self.window)
+            }
+        ]
     }
 
     override func updateTrackingAreas() {
@@ -981,11 +1070,10 @@ class HoverControlView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        coordinator?.isHovering = true
         coordinator?.showResizeHints = true
         coordinator?.isCommandKeyPressed = event.modifierFlags.contains(.command)
         updateMouseLocation(event)
-        updateWindowState()
+        coordinator?.pointerEntered(window: window)
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -995,10 +1083,9 @@ class HoverControlView: NSView {
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        coordinator?.isHovering = false
         coordinator?.showResizeHints = false
         coordinator?.isCommandKeyPressed = event.modifierFlags.contains(.command)
-        updateWindowState()
+        coordinator?.pointerExited(window: window)
     }
 
     private func updateMouseLocation(_ event: NSEvent) {

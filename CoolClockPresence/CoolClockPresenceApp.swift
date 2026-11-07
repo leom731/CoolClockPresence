@@ -71,6 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     var worldClockPickerWindow: NSWindow?
     var manageWorldClocksWindow: NSWindow?
     var managePhotosWindow: NSWindow?
+    var unifiedWorldClocksWindow: NSPanel?
     private let defaults = UserDefaults.standard
     private var statusItem: NSStatusItem?
     private var lastKnownWindowPresetValue: String?
@@ -181,6 +182,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             self,
             selector: #selector(handleOpenWorldClock),
             name: NSNotification.Name("OpenWorldClock"),
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleOpenUnifiedWorldClocks),
+            name: NSNotification.Name("OpenUnifiedWorldClocks"),
             object: nil
         )
 
@@ -1658,6 +1666,82 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
 
         createWorldClockWindow(for: location, timeZone: timeZone)
+    }
+
+    @objc private func handleOpenUnifiedWorldClocks() {
+        if let unifiedWorldClocksWindow {
+            unifiedWorldClocksWindow.orderFrontRegardless()
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let restoredFrame = worldClockManager.restoredUnifiedWindowFrame
+        let panel = ActivatingPanel(
+            contentRect: restoredFrame ?? NSRect(x: 0, y: 0, width: 360, height: 320),
+            styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "World Clocks"
+        panel.isFloatingPanel = true
+        panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.popUpMenuWindow)))
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = false
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.isRestorable = false
+        panel.contentMinSize = CGSize(width: 168, height: 80)
+        panel.contentMaxSize = CGSize(width: 616, height: 720)
+
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
+
+        let hostingView = NSHostingView(rootView: UnifiedWorldClocksView())
+        panel.contentView = hostingView
+        hostingView.wantsLayer = true
+        hostingView.layer?.cornerRadius = 40
+        hostingView.layer?.cornerCurve = .continuous
+        hostingView.layer?.masksToBounds = true
+        if restoredFrame == nil {
+            panel.center()
+        }
+
+        unifiedWorldClocksWindow = panel
+        worldClockManager.registerUnifiedWindow(panel)
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self, weak panel] _ in
+            if let frame = panel?.frame {
+                self?.worldClockManager.updateUnifiedWindowFrame(frame)
+            }
+        }
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self, weak panel] _ in
+            if let frame = panel?.frame {
+                self?.worldClockManager.updateUnifiedWindowFrame(frame)
+            }
+        }
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self] _ in
+            self?.unifiedWorldClocksWindow = nil
+            self?.worldClockManager.unregisterUnifiedWindow()
+        }
+        panel.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func createWorldClockWindow(for location: WorldClockLocation, timeZone: TimeZone) {
